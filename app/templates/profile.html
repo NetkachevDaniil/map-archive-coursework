@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="profile-top">
+    <div class="avatar-box">
+        {% if profile_user.avatar_url %}
+            <img src="{{ profile_user.avatar_url }}" alt="avatar">
+        {% else %}
+            <div class="avatar-placeholder">Фото</div>
+        {% endif %}
+    </div>
+    <div class="profile-meta">
+        <h2>{{ profile_user.full_name or profile_user.login }}</h2>
+        <p>Логин: {{ profile_user.login }}</p>
+        <p>Email: {{ profile_user.email }}</p>
+        <p>Роль: {{ profile_user.role.value }}</p>
+        <p>{{ profile_user.bio or "Профиль пока не заполнен." }}</p>
+    </div>
+</section>
+
+{% if posts %}
+    <section class="profile-grid">
+        {% for post in posts %}
+            <a class="profile-card" href="/maps/{{ post.id }}">
+                <img src="{{ storage_service.get_public_url(post.image_key) }}" alt="Карта">
+                <span>{{ post.title }}</span>
+            </a>
+        {% endfor %}
+    </section>
+{% elif is_self %}
+    <div class="empty-box">
+        У вас пока нет карт. Добавьте первую карту:
+        <a href="/maps/create">перейти к публикации</a>
+    </div>
+{% else %}
+    <div class="empty-box">У этого пользователя пока нет опубликованных карт.</div>
+{% endif %}
+{% endblock %}

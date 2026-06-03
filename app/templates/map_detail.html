@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<article class="detail-wrap">
+    <h2>{{ post.title }}</h2>
+    {% if similar_notice %}
+        <div class="info-box">Похожие карты в архиве уже есть. В каталоге можно отфильтровать по территории и году для сравнения.</div>
+    {% endif %}
+    <div class="detail-main">
+        <img src="{{ image_url }}" alt="Карта">
+        <aside>
+            <p><b>Публикатор:</b> {{ post.author.full_name if post.author and post.author.full_name else (post.author.login if post.author else post.parsed_source or "Импорт") }}</p>
+            <p><b>Территория:</b> {{ post.territory }}</p>
+            <p><b>Соревнование:</b> {{ post.event.name if post.event else "Неизвестно" }}</p>
+            <p><b>Год:</b> {{ post.year_of_event or "Неизвестно" }}</p>
+            <p><b>Масштаб:</b> {% if post.scale_denominator %}1:{{ post.scale_denominator }}{% else %}Неизвестно{% endif %}</p>
+            <p><b>Автор-составитель:</b> {{ post.cartographer or "Не указан" }}</p>
+            <p><b>Правообладатель:</b> {{ post.rights_holder or "Не указан" }}</p>
+            <p><b>Описание:</b> {{ post.description or "—" }}</p>
+            <p><b>Лайки:</b> {{ likes_count }}</p>
+            <a href="/maps/{{ post.id }}/download">Скачать изображение</a>
+            {% if current_user %}
+                <form method="post" action="/maps/{{ post.id }}/like" class="inline-form">
+                    <button type="submit">{{ "Убрать лайк" if liked else "Поставить лайк" }}</button>
+                </form>
+            {% endif %}
+            {% if can_manage %}
+                <div class="manage-row">
+                    <a href="/maps/{{ post.id }}/edit">Редактировать</a>
+                    <form method="post" action="/maps/{{ post.id }}/delete" class="inline-form" onsubmit="return confirm('Удалить пост?');">
+                        <button type="submit">Удалить</button>
+                    </form>
+                </div>
+            {% endif %}
+        </aside>
+    </div>
+
+    <section class="comments">
+        <h3>Комментарии</h3>
+        {% if current_user %}
+            <form method="post" action="/maps/{{ post.id }}/comment" class="comment-form">
+                <textarea name="text" required rows="3" placeholder="Напишите комментарий..."></textarea>
+                <button type="submit">Отправить</button>
+            </form>
+        {% endif %}
+
+        {% for comment in post.comments %}
+            <div class="comment-item">
+                <b>{{ comment.author.login }}</b>:
+                <span>{{ comment.text }}</span>
+            </div>
+        {% else %}
+            <div class="empty-box">Комментариев пока нет.</div>
+        {% endfor %}
+    </section>
+</article>
+{% endblock %}

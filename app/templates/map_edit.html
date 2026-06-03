@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="form-card">
+    <h2>Редактирование карты</h2>
+    {% if request.query_params.get("error") == "territory" %}
+        <div class="error-box">Территория должна быть в формате: Регион-Город-Район</div>
+    {% endif %}
+    <form method="post" action="/maps/{{ post.id }}/edit" class="v-form">
+        <label>Название карты <input name="title" value="{{ post.title }}" required></label>
+        <label>Территория <input name="territory" value="{{ post.territory }}" required></label>
+        <label>Соревнование <input name="event_name" value="{{ post.event.name if post.event else '' }}"></label>
+        <label>Год <input type="number" name="year_of_event" value="{{ post.year_of_event or '' }}"></label>
+        <label>Масштаб <input type="number" name="scale_denominator" value="{{ post.scale_denominator or '' }}"></label>
+        <label>Автор-составитель карты <input name="cartographer" value="{{ post.cartographer or '' }}"></label>
+        <label>Правообладатель <input name="rights_holder" value="{{ post.rights_holder or '' }}"></label>
+        <label>Описание <textarea name="description" rows="5">{{ post.description or '' }}</textarea></label>
+        <button type="submit">Сохранить</button>
+    </form>
+</section>
+{% endblock %}

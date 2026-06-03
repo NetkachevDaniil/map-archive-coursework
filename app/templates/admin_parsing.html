@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="admin-wrap">
+    <h2>Модерация спарсенных карт</h2>
+    <form method="post" action="/admin/parsing/import" class="import-form">
+        <button type="submit">Подгрузить ещё по 5 карт с каждого источника</button>
+    </form>
+    {% if request.query_params.get("imported") %}
+        <div class="info-box">
+            Импортировано: {{ request.query_params.get("imported") }},
+            через внешний URL (fallback): {{ request.query_params.get("external", "0") }},
+            пропущено: {{ request.query_params.get("skipped") }},
+            ошибок: {{ request.query_params.get("errors") }}
+        </div>
+    {% endif %}
+
+    <h3>Ожидают модерации</h3>
+    {% for post in pending_posts %}
+        <article class="admin-card">
+            <img src="{{ storage_service.get_public_url(post.image_key) }}" alt="parsed map">
+            <div>
+                <p><b>Публикатор:</b> {{ post.author.login if post.author else post.parsed_source or "неизвестно" }}</p>
+                <p><b>URL:</b> {{ post.source_url or "—" }}</p>
+                <p><b>Статус:</b> {{ post.parse_status.value }}</p>
+
+                <form method="post" action="/admin/parsing/{{ post.id }}/approve" class="v-form">
+                    <input name="title" value="{{ post.title }}" required>
+                    <input name="territory" value="{{ post.territory }}" placeholder="Территория: Регион-Город-Район" required>
+                    <input name="event_name" placeholder="Соревнование">
+                    <input type="number" name="year_of_event" value="{{ post.year_of_event or '' }}" placeholder="Год">
+                    <input type="number" name="scale_denominator" value="{{ post.scale_denominator or '' }}" placeholder="Масштаб">
+                    <input name="cartographer" value="{{ post.cartographer or '' }}" placeholder="Автор-составитель карты">
+                    <input name="rights_holder" value="{{ post.rights_holder or '' }}" placeholder="Правообладатель">
+                    <textarea name="description" rows="3">{{ post.description }}</textarea>
+                    <button type="submit">Опубликовать</button>
+                </form>
+
+                <form method="post" action="/admin/parsing/{{ post.id }}/reject" class="inline-form">
+                    <button type="submit">Отклонить</button>
+                </form>
+                <form method="post" action="/admin/parsing/{{ post.id }}/delete" class="inline-form">
+                    <button type="submit">Удалить</button>
+                </form>
+            </div>
+        </article>
+    {% else %}
+        <div class="empty-box">Очередь модерации пуста.</div>
+    {% endfor %}
+
+    <h3>Уже обработанные</h3>
+    {% for post in processed_posts %}
+        <details class="processed-item">
+            <summary>{{ post.title }} — статус: {{ post.parse_status.value }} {% if post.is_public %}(опубликовано){% endif %}</summary>
+            <div class="processed-meta">
+                <a href="/maps/{{ post.id }}" target="_blank">Открыть пост</a>
+                <span>Территория: {{ post.territory }}</span>
+            </div>
+        </details>
+    {% else %}
+        <div class="empty-box">Обработанных карт пока нет.</div>
+    {% endfor %}
+</section>
+{% endblock %}

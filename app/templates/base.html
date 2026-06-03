@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title or "OrientMaps" }}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="topbar">
+    <div class="brand"><a href="/">ORIENTMAPS</a></div>
+    <nav class="nav">
+        <a href="/">Лента</a>
+        <a href="/catalog">Каталог</a>
+        {% if current_user %}
+            <a href="/profile/me">Профиль</a>
+            {% if current_user.role.value == "admin" %}
+                <a href="/admin/parsing">Модерация</a>
+            {% endif %}
+        {% else %}
+            <a href="/auth/login">Вход</a>
+        {% endif %}
+    </nav>
+    <div class="right-panel">
+        {% if current_user %}
+            <span class="small-text">{{ current_user.login }}</span>
+            <a href="/auth/logout" class="link-btn">Выйти</a>
+        {% endif %}
+    </div>
+</header>
+
+<main class="container">
+    {% block content %}{% endblock %}
+</main>
+
+{% if current_user %}
+    <a class="fab" href="/maps/create">+</a>
+{% endif %}
+
+</body>
+</html>

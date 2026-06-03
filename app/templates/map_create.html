@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="form-card">
+    <h2>Добавление новой карты</h2>
+    {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+    <form method="post" action="/maps/create" enctype="multipart/form-data" class="v-form">
+        <label>Название карты <input name="title" value="{{ form_data.title if form_data else '' }}" required></label>
+        <label>Территория (строго: Регион-Город-Район)
+            <input id="territoryField" name="territory" value="{{ form_data.territory if form_data else '' }}" placeholder="Москва-Москва-Измайлово" required>
+        </label>
+        <label>Соревнование <input name="event_name" value="{{ form_data.event_name if form_data else '' }}"></label>
+        <label>Год <input id="yearField" type="number" name="year_of_event" value="{{ form_data.year_of_event if form_data else '' }}"></label>
+        <label>Масштаб <input type="number" name="scale_denominator" value="{{ form_data.scale_denominator if form_data else '' }}" placeholder="10000"></label>
+        <label>Автор-составитель карты <input name="cartographer" value="{{ form_data.cartographer if form_data else '' }}" placeholder="Необязательно"></label>
+        <label>Правообладатель <input name="rights_holder" value="{{ form_data.rights_holder if form_data else '' }}" placeholder="Необязательно"></label>
+        <label>Описание <textarea name="description" rows="4">{{ form_data.description if form_data else '' }}</textarea></label>
+        <label>Файл карты <input type="file" name="image" accept="image/*" required></label>
+        <button type="button" onclick="openSimilarInNewTab()" class="secondary-btn">Проверить похожие карты в новой вкладке</button>
+        <button type="submit">Опубликовать</button>
+    </form>
+    {% if similar_posts %}
+        <div class="info-box">
+            Похожие карты уже есть в архиве:
+            {% for item in similar_posts %}
+                <div><a href="/maps/{{ item.id }}" target="_blank">{{ item.title }}</a></div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</section>
+<script>
+function openSimilarInNewTab() {
+    const territory = document.getElementById('territoryField').value || '';
+    const year = document.getElementById('yearField').value || '';
+    const url = `/catalog?tab=maps&territory=${encodeURIComponent(territory)}&year=${encodeURIComponent(year)}&sort=published_desc`;
+    window.open(url, '_blank');
+}
+</script>
+{% endblock %}
