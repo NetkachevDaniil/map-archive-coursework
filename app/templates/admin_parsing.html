@@ -55,7 +55,7 @@
         <details class="processed-item">
             <summary>{{ post.title }} — статус: {{ post.parse_status.value }} {% if post.is_public %}(опубликовано){% endif %}</summary>
             <div class="processed-meta">
-                <a href="/maps/{{ post.id }}" target="_blank">Открыть пост</a>
+                <a href="/maps/{{ post.id }}" target="_blank" class="table-link">Открыть пост</a>
                 <span>Территория: {{ post.territory }}</span>
             </div>
         </details>

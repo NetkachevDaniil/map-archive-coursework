@@ -1,34 +1,104 @@
-# Подключение домена o-maps.net.ru
+# Как подключить домен o-maps.net.ru — пошагово
 
-Краткая инструкция для публикации OrientMaps на вашем домене.
+Домен **куплен** — это только «адрес» в интернете. Чтобы по нему открывался ваш сайт OrientMaps.Net, нужно связать домен с **сервером**, где запущено приложение.
 
-## 1. DNS у регистратора домена
+---
 
-В панели управления доменом `o-maps.net.ru` добавьте записи:
+## Что понадобится
 
-| Тип | Имя | Значение | TTL |
-|-----|-----|----------|-----|
-| A | `@` | IP вашего сервера (VPS) | 300–3600 |
-| A | `www` | тот же IP | 300–3600 |
+1. **Домен** `o-maps.net.ru` (у вас уже есть).
+2. **VPS/сервер** — виртуальная машина с белым IP (например Timeweb, Selectel, REG.RU VPS, Yandex Cloud).
+3. **Сайт на сервере** — OrientMaps запущен через Docker или `uvicorn`.
+4. Доступ к **панели регистратора домена** (где покупали `.net.ru`).
 
-Если сайт будет на другом хостинге — уточните у провайдера, нужна ли CNAME вместо A.
+---
 
-Проверка (через несколько минут):
+## Шаг 1. Узнать IP сервера
+
+На VPS выполните:
+
+```bash
+curl -4 ifconfig.me
+```
+
+Или посмотрите IP в панели хостинга. Пример: `185.12.34.56`.
+
+Этот IP нужно «привязать» к домену.
+
+---
+
+## Шаг 2. Настроить DNS у регистратора
+
+Зайдите в личный кабинет, где куплен домен → раздел **DNS / Управление зоной / DNS-серверы**.
+
+### Если DNS ведёт регистратор
+
+Добавьте записи:
+
+| Тип | Имя (Host) | Значение | TTL |
+|-----|------------|----------|-----|
+| **A** | `@` | `185.12.34.56` (ваш IP) | 3600 |
+| **A** | `www` | `185.12.34.56` (тот же IP) | 3600 |
+
+- `@` — это сам домен `o-maps.net.ru`
+- `www` — это `www.o-maps.net.ru`
+
+Сохраните. Обновление DNS занимает от **5 минут до 24 часов**.
+
+### Проверка с вашего ПК
 
 ```powershell
 nslookup o-maps.net.ru
 ```
 
-## 2. Сервер: Nginx + приложение
+В ответе должен быть ваш IP сервера.
 
-Пример для VPS с Ubuntu и приложением на порту `8000`:
+---
+
+## Шаг 3. Запустить сайт на сервере
+
+### Вариант A — Docker (рекомендуется)
+
+На сервере в папке проекта:
+
+```bash
+git clone https://github.com/NetkachevDaniil/map-archive-coursework.git
+cd map-archive-coursework
+cp .env.example .env
+# отредактируйте .env: DATABASE_URL, S3, SECRET_KEY и т.д.
+docker compose up -d --build
+```
+
+Приложение обычно слушает порт **8000** внутри контейнера.
+
+### Вариант B — вручную
+
+```bash
+pip install -r requirements.txt
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+---
+
+## Шаг 4. Nginx — «входная дверь» для домена
+
+Nginx принимает запросы на `o-maps.net.ru` и передаёт их вашему FastAPI.
+
+Установка (Ubuntu):
+
+```bash
+sudo apt update
+sudo apt install nginx
+```
+
+Файл `/etc/nginx/sites-available/o-maps`:
 
 ```nginx
 server {
     listen 80;
     server_name o-maps.net.ru www.o-maps.net.ru;
 
-    client_max_body_size 20M;
+    client_max_body_size 25M;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -40,65 +110,78 @@ server {
 }
 ```
 
-Запуск приложения (из каталога проекта):
+Активация:
 
 ```bash
-uvicorn app.main:app --host 127.0.0.1 --port 8000
+sudo ln -s /etc/nginx/sites-available/o-maps /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
-Для production лучше использовать systemd или Docker из `docker-compose.yml`.
+Откройте в браузере: `http://o-maps.net.ru` — должен открыться сайт (пока без HTTPS).
 
-## 3. HTTPS (Let's Encrypt)
+---
+
+## Шаг 5. HTTPS (замок в браузере)
 
 ```bash
 sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d o-maps.net.ru -d www.o-maps.net.ru
 ```
 
-Certbot сам настроит редирект HTTP → HTTPS.
+Certbot сам выпустит бесплатный сертификат Let's Encrypt и настроит редирект HTTP → HTTPS.
 
-## 4. Переменные окружения
+После этого сайт: **https://o-maps.net.ru**
 
-В `.env` на сервере проверьте:
+---
 
-- `SECRET_KEY` — уникальный ключ
-- `DATABASE_URL` — PostgreSQL
-- `USE_S3`, `S3_*` — хранилище файлов
-- при необходимости `SITE_BACKGROUND_URL`, `DEFAULT_AVATAR_URL`
+## Шаг 6. Что где лежит — краткая схема
 
-## 5. Favicon (иконка во вкладке браузера)
-
-В проекте уже добавлен файл `app/static/favicon.svg` (минималистичные буквы **O** и **M** в чёрно-оранжевой теме).
-
-Подключение в шаблоне:
-
-```html
-<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+```
+Пользователь в браузере
+        ↓
+   DNS: o-maps.net.ru → IP сервера
+        ↓
+   Nginx (порт 443 HTTPS)
+        ↓
+   FastAPI / uvicorn (порт 8000)
+        ↓
+   PostgreSQL + S3 (картинки)
 ```
 
-При желании можно дополнительно положить `favicon.ico` в `app/static/` и добавить:
+---
 
-```html
-<link rel="icon" href="/static/favicon.ico" sizes="any">
-```
+## Частые проблемы
 
-## 6. Редирект www → без www (опционально)
+| Проблема | Причина | Решение |
+|----------|---------|---------|
+| «Сайт не открывается» | DNS ещё не обновился | Подождать, проверить `nslookup` |
+| «502 Bad Gateway» | приложение не запущено | `docker compose ps`, перезапуск |
+| «Connection refused» | Nginx не настроен / firewall | открыть порты 80 и 443 |
+| Картинки не грузятся | S3 ключи в `.env` | проверить `USE_S3`, `S3_*` |
 
-В Nginx после получения SSL:
+---
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name www.o-maps.net.ru;
-    return 301 https://o-maps.net.ru$request_uri;
-}
-```
+## Favicon (иконка во вкладке)
 
-## 7. Проверка после деплоя
+Уже в проекте: `app/static/favicon.svg`, подключён в `base.html`.
 
-1. Открыть `https://o-maps.net.ru`
-2. Убедиться, что картинки грузятся из S3
-3. Проверить вход, каталог, модерацию
-4. Во вкладке браузера должна отображаться иконка OM
+После деплоя обновите страницу с Ctrl+F5 — во вкладке будет иконка **OM**.
 
-Если DNS только что изменили, полное обновление может занять до 24 часов.
+---
+
+## Если сайт только на вашем компьютере (без VPS)
+
+Домен **не сможет** указывать на `localhost`. Нужен либо VPS, либо туннель (ngrok и т.п.) — для курсового и production обычно берут VPS.
+
+---
+
+## Итог — минимальный чеклист
+
+- [ ] Есть VPS с белым IP
+- [ ] A-запись `@` и `www` → IP VPS
+- [ ] `nslookup o-maps.net.ru` показывает правильный IP
+- [ ] Приложение запущено на порту 8000
+- [ ] Nginx проксирует домен на 8000
+- [ ] Certbot выдал HTTPS
+- [ ] Открывается https://o-maps.net.ru

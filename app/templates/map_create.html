@@ -26,7 +26,7 @@
         <div class="info-box">
             Похожие карты уже есть в архиве:
             {% for item in similar_posts %}
-                <div><a href="/maps/{{ item.id }}" target="_blank">{{ item.title }}</a></div>
+                <div><a class="table-link" href="/maps/{{ item.id }}" target="_blank">{{ item.title }}</a></div>
             {% endfor %}
         </div>
     {% endif %}

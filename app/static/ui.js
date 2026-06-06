@@ -44,4 +44,51 @@ document.addEventListener("DOMContentLoaded", () => {
       window.setTimeout(() => comments.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
     }
   }
+
+  const backBtn = document.getElementById("backBtn");
+  if (backBtn) {
+    backBtn.addEventListener("click", () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = "/";
+      }
+    });
+  }
+
+  document.querySelectorAll("[data-action-menu]").forEach((menuRoot) => {
+    const toggle = menuRoot.querySelector(".action-menu-toggle");
+    const panel = menuRoot.querySelector(".action-menu-panel");
+    if (!toggle || !panel) return;
+
+    const closeMenu = () => {
+      panel.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+    };
+
+    toggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const willOpen = panel.hidden;
+      document.querySelectorAll(".action-menu-panel").forEach((other) => {
+        other.hidden = true;
+      });
+      document.querySelectorAll(".action-menu-toggle").forEach((otherToggle) => {
+        otherToggle.setAttribute("aria-expanded", "false");
+      });
+      panel.hidden = !willOpen;
+      toggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!menuRoot.contains(event.target)) {
+        closeMenu();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    });
+  });
 });

@@ -29,7 +29,7 @@
             {% for user in users %}
                 <tr>
                     <td>{{ user.full_name or user.login }}</td>
-                    <td><a href="/profile/{{ user.login }}">Открыть</a></td>
+                    <td><a class="table-link" href="/profile/{{ user.login }}">Открыть</a></td>
                 </tr>
             {% else %}
                 <tr><td colspan="2">Ничего не найдено</td></tr>
@@ -48,7 +48,7 @@
                     <td>{{ post.year_of_event or "—" }}</td>
                     <td>{{ post.cartographer or "—" }}</td>
                     <td>{{ post.author.full_name if post.author and post.author.full_name else (post.author.login if post.author else post.parsed_source or "импорт") }}</td>
-                    <td><a href="/maps/{{ post.id }}">Открыть</a></td>
+                    <td><a class="table-link" href="/maps/{{ post.id }}">Открыть</a></td>
                 </tr>
             {% else %}
                 <tr><td colspan="7">Ничего не найдено</td></tr>

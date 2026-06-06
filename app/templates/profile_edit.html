@@ -4,8 +4,8 @@
     <h2>Редактирование профиля</h2>
     {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
     <form method="post" action="/profile/me/edit" enctype="multipart/form-data" class="v-form">
-        <label>Имя / отображаемое имя
-            <input name="full_name" value="{{ profile_user.full_name or '' }}" required>
+        <label>Имя в профиле
+            <input name="full_name" value="{{ profile_user.full_name or '' }}" required placeholder="Как вас видят другие пользователи">
         </label>
         <label>О себе
             <textarea name="bio" rows="4" placeholder="Кратко о себе, клуб, интересы...">{{ profile_user.bio or '' }}</textarea>
