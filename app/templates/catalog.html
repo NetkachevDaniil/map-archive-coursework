@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="catalog">
-    <form method="get" action="/catalog" class="search-form">
+    <form method="get" action="/catalog" class="search-form" id="catalogForm">
         <input type="text" name="q" value="{{ q }}" placeholder="Поиск по картам и пользователям">
         <input type="text" name="territory" value="{{ territory or '' }}" placeholder="Территория (Регион-Город-Район)">
-        <input type="number" name="year" value="{{ year or '' }}" placeholder="Год">
-        <select name="sort">
+        <input type="number" name="year" value="{{ year_raw or '' }}" placeholder="Год">
+        <select name="sort" id="catalogSort">
             <option value="published_desc" {{ 'selected' if sort == 'published_desc' else '' }}>Публикация: сначала новые</option>
             <option value="published_asc" {{ 'selected' if sort == 'published_asc' else '' }}>Публикация: сначала старые</option>
             <option value="year_desc" {{ 'selected' if sort == 'year_desc' else '' }}>Год: по убыванию</option>
@@ -18,23 +18,21 @@
     </form>
 
     <div class="tabs">
-        <a class="tab {{ 'active' if tab == 'maps' else '' }}" href="/catalog?tab=maps&q={{ q }}&territory={{ territory }}&year={{ year or '' }}&sort={{ sort }}">Карты</a>
-        <a class="tab {{ 'active' if tab == 'users' else '' }}" href="/catalog?tab=users&q={{ q }}">Спортсмены</a>
+        <a class="tab {{ 'active' if tab == 'maps' else '' }}" href="/catalog?tab=maps{% if q %}&q={{ q }}{% endif %}{% if territory %}&territory={{ territory }}{% endif %}{% if year_raw %}&year={{ year_raw }}{% endif %}&sort={{ sort }}">Карты</a>
+        <a class="tab {{ 'active' if tab == 'users' else '' }}" href="/catalog?tab=users{% if q %}&q={{ q }}{% endif %}">Спортсмены</a>
     </div>
 
     {% if tab == "users" %}
         <table class="data-table">
-            <thead><tr><th>Логин</th><th>Имя</th><th>Роль</th><th>Профиль</th></tr></thead>
+            <thead><tr><th>Имя</th><th>Профиль</th></tr></thead>
             <tbody>
             {% for user in users %}
                 <tr>
-                    <td>{{ user.login }}</td>
-                    <td>{{ user.full_name }}</td>
-                    <td>{{ user.role.value }}</td>
+                    <td>{{ user.full_name or user.login }}</td>
                     <td><a href="/profile/{{ user.login }}">Открыть</a></td>
                 </tr>
             {% else %}
-                <tr><td colspan="4">Ничего не найдено</td></tr>
+                <tr><td colspan="2">Ничего не найдено</td></tr>
             {% endfor %}
             </tbody>
         </table>
@@ -49,7 +47,7 @@
                     <td>{{ post.event.name if post.event else "—" }}</td>
                     <td>{{ post.year_of_event or "—" }}</td>
                     <td>{{ post.cartographer or "—" }}</td>
-                    <td>{{ post.author.login if post.author else post.parsed_source or "импорт" }}</td>
+                    <td>{{ post.author.full_name if post.author and post.author.full_name else (post.author.login if post.author else post.parsed_source or "импорт") }}</td>
                     <td><a href="/maps/{{ post.id }}">Открыть</a></td>
                 </tr>
             {% else %}

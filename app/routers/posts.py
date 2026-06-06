@@ -258,7 +258,13 @@ def add_comment(
 
 
 @router.post("/{post_id}/like")
-def toggle_like(post_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(require_user)):
+def toggle_like(
+    post_id: UUID,
+    request: Request,
+    redirect_to: str = Form(default=""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_user),
+):
     post = db.get(MapPost, post_id)
     if not post or not post.is_public:
         raise HTTPException(status_code=404, detail="Пост не найден")
@@ -269,7 +275,10 @@ def toggle_like(post_id: UUID, db: Session = Depends(get_db), current_user: User
     else:
         db.add(Like(map_id=post_id, user_id=current_user.id))
     db.commit()
-    return RedirectResponse(url=f"/maps/{post_id}", status_code=302)
+    target = (redirect_to or request.headers.get("referer") or f"/maps/{post_id}").strip()
+    if not target.startswith("/"):
+        target = f"/maps/{post_id}"
+    return RedirectResponse(url=target, status_code=302)
 
 
 @router.get("/{post_id}/download")

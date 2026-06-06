@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import RedirectResponse
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -45,6 +46,15 @@ def _posts_for_feed(db: Session):
 @router.get("/")
 def home(request: Request, db: Session = Depends(get_db), current_user: User | None = Depends(get_current_user)):
     rows = _posts_for_feed(db)
+    post_ids = [post.id for post, _, _ in rows]
+    liked_ids: set = set()
+    if current_user and post_ids:
+        liked_ids = {
+            row[0]
+            for row in db.execute(
+                select(Like.map_id).where(Like.user_id == current_user.id, Like.map_id.in_(post_ids))
+            ).all()
+        }
     posts = []
     for post, likes_count, comments_count in rows:
         posts.append(
@@ -52,6 +62,7 @@ def home(request: Request, db: Session = Depends(get_db), current_user: User | N
                 "post": post,
                 "likes_count": likes_count,
                 "comments_count": comments_count,
+                "liked": post.id in liked_ids,
                 "image_url": storage_service.get_public_url(post.image_key),
             }
         )
@@ -64,13 +75,16 @@ def catalog(
     q: str | None = Query(default=None),
     tab: str = Query(default="maps"),
     territory: str | None = Query(default=None),
-    year: int | None = Query(default=None),
+    year: str | None = Query(default=None),
     sort: str = Query(default="published_desc"),
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user),
 ):
     search = (q or "").strip()
     territory_filter = (territory or "").strip()
+    year_filter: int | None = None
+    if year and year.strip().isdigit():
+        year_filter = int(year.strip())
 
     maps_stmt = (
         select(MapPost)
@@ -87,8 +101,8 @@ def catalog(
         )
     if territory_filter:
         maps_stmt = maps_stmt.where(MapPost.territory.ilike(f"%{territory_filter}%"))
-    if year:
-        maps_stmt = maps_stmt.where(MapPost.year_of_event == year)
+    if year_filter:
+        maps_stmt = maps_stmt.where(MapPost.year_of_event == year_filter)
 
     if sort == "year_asc":
         maps_stmt = maps_stmt.order_by(MapPost.year_of_event.asc().nullslast())
@@ -118,7 +132,8 @@ def catalog(
             "tab": tab,
             "q": search,
             "territory": territory_filter,
-            "year": year,
+            "year": year_filter,
+            "year_raw": year or "",
             "sort": sort,
             "maps": maps,
             "users": users,
@@ -150,6 +165,40 @@ def my_profile(request: Request, db: Session = Depends(get_db), current_user: Us
             "storage_service": storage_service,
         },
     )
+
+
+@router.get("/profile/me/edit")
+def profile_edit_page(request: Request, current_user: User = Depends(require_user)):
+    return templates.TemplateResponse(
+        request=request,
+        name="profile_edit.html",
+        context={
+            "request": request,
+            "current_user": current_user,
+            "profile_user": current_user,
+            "error": None,
+        },
+    )
+
+
+@router.post("/profile/me/edit")
+def profile_edit_submit(
+    request: Request,
+    full_name: str = Form(""),
+    bio: str = Form(""),
+    avatar: UploadFile | None = File(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_user),
+):
+    current_user.full_name = full_name.strip() or current_user.login
+    current_user.bio = bio.strip()
+
+    if avatar and avatar.filename:
+        key = storage_service.save_upload(avatar, folder="avatars")
+        current_user.avatar_url = storage_service.get_public_url(key)
+
+    db.commit()
+    return RedirectResponse(url="/profile/me", status_code=303)
 
 
 @router.get("/profile/{login}")

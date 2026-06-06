@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="admin-wrap">
-    <h2>Модерация спарсенных карт</h2>
-    <form method="post" action="/admin/parsing/import" class="import-form">
-        <button type="submit">Подгрузить ещё по 5 карт с каждого источника</button>
-    </form>
+    <header class="admin-header">
+        <h2>Модерация спарсенных карт</h2>
+        <form method="post" action="/admin/parsing/import" class="import-form">
+            <button type="submit">Подгрузить ещё по 5 карт с каждого источника</button>
+        </form>
+    </header>
+
     {% if request.query_params.get("imported") %}
         <div class="info-box">
             Импортировано: {{ request.query_params.get("imported") }},
@@ -16,30 +19,30 @@
 
     <h3>Ожидают модерации</h3>
     {% for post in pending_posts %}
-        <article class="admin-card">
-            <img src="{{ storage_service.get_public_url(post.image_key) }}" alt="parsed map">
-            <div>
-                <p><b>Публикатор:</b> {{ post.author.login if post.author else post.parsed_source or "неизвестно" }}</p>
-                <p><b>URL:</b> {{ post.source_url or "—" }}</p>
-                <p><b>Статус:</b> {{ post.parse_status.value }}</p>
+        <article class="admin-card admin-card-moderation">
+            <div class="admin-card-media">
+                <img src="{{ storage_service.get_public_url(post.image_key) }}" alt="parsed map">
+            </div>
+            <div class="admin-card-body">
+                <div class="admin-card-meta">
+                    <p><b>Источник:</b> {{ post.parsed_source or "o-maps.spb.ru" }}</p>
+                    <p><b>URL:</b> <a href="{{ post.source_url }}" target="_blank" rel="noopener">{{ post.source_url or "—" }}</a></p>
+                </div>
 
-                <form method="post" action="/admin/parsing/{{ post.id }}/approve" class="v-form">
-                    <input name="title" value="{{ post.title }}" required>
+                <form method="post" action="/admin/parsing/{{ post.id }}/approve" class="v-form admin-form">
+                    <input name="title" value="{{ post.title }}" required placeholder="Название">
                     <input name="territory" value="{{ post.territory }}" placeholder="Территория: Регион-Город-Район" required>
                     <input name="event_name" placeholder="Соревнование">
                     <input type="number" name="year_of_event" value="{{ post.year_of_event or '' }}" placeholder="Год">
                     <input type="number" name="scale_denominator" value="{{ post.scale_denominator or '' }}" placeholder="Масштаб">
                     <input name="cartographer" value="{{ post.cartographer or '' }}" placeholder="Автор-составитель карты">
                     <input name="rights_holder" value="{{ post.rights_holder or '' }}" placeholder="Правообладатель">
-                    <textarea name="description" rows="3">{{ post.description }}</textarea>
-                    <button type="submit">Опубликовать</button>
-                </form>
-
-                <form method="post" action="/admin/parsing/{{ post.id }}/reject" class="inline-form">
-                    <button type="submit">Отклонить</button>
-                </form>
-                <form method="post" action="/admin/parsing/{{ post.id }}/delete" class="inline-form">
-                    <button type="submit">Удалить</button>
+                    <textarea name="description" rows="3" placeholder="Описание">{{ post.description }}</textarea>
+                    <div class="admin-actions">
+                        <button type="submit" class="btn-primary">Опубликовать</button>
+                        <button formaction="/admin/parsing/{{ post.id }}/reject" formmethod="post" type="submit" class="btn-secondary">Отклонить</button>
+                        <button formaction="/admin/parsing/{{ post.id }}/delete" formmethod="post" type="submit" class="btn-danger" onclick="return confirm('Удалить карту из очереди?');">Удалить</button>
+                    </div>
                 </form>
             </div>
         </article>

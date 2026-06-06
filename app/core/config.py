@@ -46,6 +46,7 @@ class Settings(BaseSettings):
 
     local_upload_dir: str = str(BASE_DIR / "uploads")
     site_background_url: str = "https://storage.yandexcloud.net/orientmaps-archive/ui/site-background.jpg"
+    default_avatar_url: str = "https://i.pinimg.com/736x/bf/3a/5b/bf3a5beed53640cb39c307219a7d1837.jpg"
 
     parser_user_agent: str = "OrientMapsBot/1.0 (+coursework parser)"
     parser_days_back_default: int = 7

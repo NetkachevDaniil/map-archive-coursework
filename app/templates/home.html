@@ -2,7 +2,6 @@
 {% block content %}
 <section class="feed-header">
     <h1 class="page-title">Лента карт</h1>
-    <p class="page-subtitle">Свежие публикации и одобренные импорты</p>
 </section>
 
 <section class="feed feed-grid">
@@ -18,7 +17,7 @@
             </a>
             <div class="post-body">
                 <div class="post-head">
-                    <span class="post-author">{{ item.post.author.login if item.post.author else item.post.parsed_source or "Импорт" }}</span>
+                    <span class="post-author">{{ item.post.author.full_name if item.post.author and item.post.author.full_name else (item.post.author.login if item.post.author else item.post.parsed_source or "Импорт") }}</span>
                     <time class="post-date">{{ item.post.created_at.strftime("%d.%m.%Y") }}</time>
                 </div>
                 <a href="/maps/{{ item.post.id }}" class="post-title-link">
@@ -30,9 +29,18 @@
                     <li>{% if item.post.scale_denominator %}1:{{ item.post.scale_denominator }}{% else %}—{% endif %}</li>
                 </ul>
                 <div class="post-meta">
-                    <span class="meta-item" title="Лайки">♥ {{ item.likes_count }}</span>
-                    <span class="meta-item" title="Комментарии">◌ {{ item.comments_count }}</span>
-                    <a class="meta-link" href="/maps/{{ item.post.id }}/download">↓</a>
+                    {% if current_user %}
+                        <form method="post" action="/maps/{{ item.post.id }}/like" class="meta-form">
+                            <input type="hidden" name="redirect_to" value="/">
+                            <button type="submit" class="meta-btn {% if item.liked %}is-active{% endif %}" title="Лайк">
+                                ♥ {{ item.likes_count }}
+                            </button>
+                        </form>
+                    {% else %}
+                        <span class="meta-item" title="Лайки">♥ {{ item.likes_count }}</span>
+                    {% endif %}
+                    <a class="meta-btn meta-link" href="/maps/{{ item.post.id }}#comments" title="Комментарии">◌ {{ item.comments_count }}</a>
+                    <a class="meta-btn meta-link meta-download" href="/maps/{{ item.post.id }}/download" title="Скачать">↓</a>
                 </div>
             </div>
         </article>

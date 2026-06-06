@@ -34,7 +34,7 @@
         </aside>
     </div>
 
-    <section class="comments">
+    <section class="comments" id="comments">
         <h3>Комментарии</h3>
         {% if current_user %}
             <form method="post" action="/maps/{{ post.id }}/comment" class="comment-form">

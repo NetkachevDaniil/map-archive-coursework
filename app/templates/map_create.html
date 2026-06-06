@@ -14,7 +14,11 @@
         <label>Автор-составитель карты <input name="cartographer" value="{{ form_data.cartographer if form_data else '' }}" placeholder="Необязательно"></label>
         <label>Правообладатель <input name="rights_holder" value="{{ form_data.rights_holder if form_data else '' }}" placeholder="Необязательно"></label>
         <label>Описание <textarea name="description" rows="4">{{ form_data.description if form_data else '' }}</textarea></label>
-        <label>Файл карты <input type="file" name="image" accept="image/*" required></label>
+        <label class="file-input">
+            <span class="file-input-label">Выбрать файл карты</span>
+            <input type="file" name="image" accept="image/*" required data-file-label="Файл не выбран">
+            <span class="file-input-name">Файл не выбран</span>
+        </label>
         <button type="button" onclick="openSimilarInNewTab()" class="secondary-btn">Проверить похожие карты в новой вкладке</button>
         <button type="submit">Опубликовать</button>
     </form>

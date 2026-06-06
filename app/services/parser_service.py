@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -12,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.security import get_password_hash
 from app.models.models import MapPost, ParseStatus, User, UserRole
-from app.services.map_fields import normalize_territory
+from app.services.map_fields import build_territory, normalize_territory
 from app.services.storage_service import storage_service
 
 OMAPS_SOURCES = [
@@ -36,6 +38,10 @@ OMAPS_JS_FEEDS = {
 }
 
 
+OMAPS_AUTHORS_JS = "https://raw.githubusercontent.com/efradkin/o-maps/main/js/authors.js"
+OMAPS_OWNERS_JS = "https://raw.githubusercontent.com/efradkin/o-maps/main/js/owners.js"
+
+
 @dataclass
 class ParsedItem:
     source_name: str
@@ -49,6 +55,71 @@ class ParsedItem:
     territory: str = "Неизвестно-Неизвестно-Неизвестно"
     description: str = ""
     published_at: datetime | None = None
+
+
+def _parse_js_name_lookup(js_text: str) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    for match in re.finditer(r"(\w+)\s*:\s*\{[^}]*?name\s*:\s*'([^']*)'", js_text, flags=re.DOTALL):
+        code, name = match.group(1), match.group(2).strip()
+        if code and name:
+            lookup[code] = name
+    return lookup
+
+
+@lru_cache(maxsize=2)
+def _authors_lookup() -> dict[str, str]:
+    try:
+        return _parse_js_name_lookup(_fetch_html(OMAPS_AUTHORS_JS))
+    except Exception:
+        return {}
+
+
+@lru_cache(maxsize=2)
+def _owners_lookup() -> dict[str, str]:
+    try:
+        return _parse_js_name_lookup(_fetch_html(OMAPS_OWNERS_JS))
+    except Exception:
+        return {}
+
+
+def _clean_owner_text(raw: str) -> str | None:
+    text = re.sub(r"^\s*©\s*", "", raw).strip()
+    text = text.split("//")[0].strip()
+    if not text or text.lower().startswith("по вопросам"):
+        return None
+    text = re.split(r"\s[-–—|]\s|\[", text)[0].strip()
+    if re.search(r"[А-ЯЁа-яё]", text) and len(text) >= 4:
+        return text[:255]
+    return None
+
+
+def _resolve_person_name(code: str | None, *, prefer_owner: bool = False) -> str | None:
+    if not code or not code.strip():
+        return None
+    key = code.strip()
+    authors = _authors_lookup()
+    owners = _owners_lookup()
+
+    if key in authors:
+        name = authors[key].split("//")[0].strip()
+        if re.search(r"[А-ЯЁа-яё]", name):
+            return name[:255]
+
+    if prefer_owner and key in owners:
+        cleaned = _clean_owner_text(owners[key])
+        if cleaned:
+            return cleaned
+
+    if not prefer_owner and key in owners:
+        cleaned = _clean_owner_text(owners[key])
+        if cleaned:
+            return cleaned
+
+    if re.fullmatch(r"[A-Z0-9_]{2,20}", key):
+        return None
+    if re.search(r"[А-ЯЁа-яё]", key):
+        return key[:255]
+    return None
 
 
 def _build_headers() -> dict:
@@ -175,6 +246,8 @@ def _parse_js_feed(js_url: str, page_url: str, region_name: str, limit: int = 50
         author_m = re.search(r"author\s*:\s*'([^']+)'", chunk)
         owner_m = re.search(r"owner\s*:\s*'([^']+)'", chunk)
         scale = _extract_scale(chunk)
+        cartographer = _resolve_person_name(author_m.group(1) if author_m else None)
+        rights_holder = _resolve_person_name(owner_m.group(1) if owner_m else None, prefer_owner=True)
         items.append(
             ParsedItem(
                 source_name="o-maps.spb.ru",
@@ -183,9 +256,9 @@ def _parse_js_feed(js_url: str, page_url: str, region_name: str, limit: int = 50
                 title=name_m.group(1)[:200],
                 year=int(year_m.group(1)) if year_m else None,
                 scale_denominator=scale,
-                cartographer=author_m.group(1) if author_m else None,
-                rights_holder=owner_m.group(1) if owner_m else None,
-                territory=normalize_territory(f"{region_name}-Неизвестно-Неизвестно") or "Неизвестно-Неизвестно-Неизвестно",
+                cartographer=cartographer,
+                rights_holder=rights_holder,
+                territory=build_territory(region_name, name_m.group(1)),
                 description=f"Импорт из таблицы O-Maps: {page_url}",
             )
         )
@@ -208,13 +281,9 @@ def _parse_table_like_page(url: str, region_name: str, limit: int = 50) -> list[
         title = cols[1] if len(cols) > 1 else row_text[:180] or "Карта"
         year = _extract_year(row_text)
         scale = _extract_scale(row_text)
-        cartographer = None
-        rights_holder = None
-        if len(cols) >= 9:
-            cartographer = cols[8] or None
-        if len(cols) >= 11:
-            rights_holder = cols[10] or None
-        territory = normalize_territory(f"{region_name}-Неизвестно-Неизвестно")
+        cartographer = _resolve_person_name(cols[8] if len(cols) >= 9 else None)
+        rights_holder = _resolve_person_name(cols[10] if len(cols) >= 11 else None, prefer_owner=True)
+        territory = build_territory(region_name, title)
         items.append(
             ParsedItem(
                 source_name="o-maps.spb.ru",
@@ -225,7 +294,7 @@ def _parse_table_like_page(url: str, region_name: str, limit: int = 50) -> list[
                 scale_denominator=scale,
                 cartographer=cartographer,
                 rights_holder=rights_holder,
-                territory=territory or "Неизвестно-Неизвестно-Неизвестно",
+                territory=territory,
                 description=f"Импорт из таблицы O-Maps: {url}",
                 published_at=None,
             )
@@ -249,6 +318,8 @@ def _parse_table_like_page(url: str, region_name: str, limit: int = 50) -> list[
             scale = _extract_scale(chunk)
             author_m = re.search(r"author\s*:\s*'([^']+)'", chunk)
             owner_m = re.search(r"owner\s*:\s*'([^']+)'", chunk)
+            cartographer = _resolve_person_name(author_m.group(1) if author_m else None)
+            rights_holder = _resolve_person_name(owner_m.group(1) if owner_m else None, prefer_owner=True)
             items.append(
                 ParsedItem(
                     source_name="o-maps.spb.ru",
@@ -257,9 +328,9 @@ def _parse_table_like_page(url: str, region_name: str, limit: int = 50) -> list[
                     title=name_m.group(1)[:200],
                     year=int(year_m.group(1)) if year_m else None,
                     scale_denominator=scale,
-                    cartographer=author_m.group(1) if author_m else None,
-                    rights_holder=owner_m.group(1) if owner_m else None,
-                    territory=normalize_territory(f"{region_name}-Неизвестно-Неизвестно") or "Неизвестно-Неизвестно-Неизвестно",
+                    cartographer=cartographer,
+                    rights_holder=rights_holder,
+                    territory=build_territory(region_name, name_m.group(1)),
                     description=f"Импорт из таблицы O-Maps: {url}",
                 )
             )

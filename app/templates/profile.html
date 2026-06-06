@@ -2,18 +2,21 @@
 {% block content %}
 <section class="profile-top">
     <div class="avatar-box">
-        {% if profile_user.avatar_url %}
-            <img src="{{ profile_user.avatar_url }}" alt="avatar">
-        {% else %}
-            <div class="avatar-placeholder">Фото</div>
-        {% endif %}
+        <img src="{{ resolve_avatar_url(profile_user) }}" alt="Аватар {{ profile_user.full_name or profile_user.login }}">
     </div>
     <div class="profile-meta">
         <h2>{{ profile_user.full_name or profile_user.login }}</h2>
-        <p>Логин: {{ profile_user.login }}</p>
-        <p>Email: {{ profile_user.email }}</p>
-        <p>Роль: {{ profile_user.role.value }}</p>
-        <p>{{ profile_user.bio or "Профиль пока не заполнен." }}</p>
+        {% if profile_user.bio %}
+            <p class="profile-bio">{{ profile_user.bio }}</p>
+        {% elif is_self %}
+            <p class="profile-bio profile-bio-empty">Расскажите о себе в редактировании профиля.</p>
+        {% endif %}
+        {% if is_self %}
+            <div class="profile-actions">
+                <a class="btn-secondary" href="/profile/me/edit">Редактировать профиль</a>
+                <a class="btn-secondary" href="/maps/create">Добавить карту</a>
+            </div>
+        {% endif %}
     </div>
 </section>
 
