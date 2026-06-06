@@ -26,17 +26,14 @@
 - Очередь модерации парсинга (только для админа):
   - импорт изображений из поддерживаемых источников
   - редактирование метаданных
-  - публикация/отклонение/удаление
+  - публикация или удаление
 - Docker + docker-compose
 
 ## Источники парсинга (в текущей версии)
 
-Рабочие веб-адаптеры:
+- `https://o-maps.spb.ru/` — листы **Санкт-Петербург** и **Москва** (JS-фиды из репозитория efradkin/o-maps)
 
-- `https://maps.o-stuff.net/ru/lastmaps`
-- `https://o-mephi.net/index.php?pid=145`
-
-Важно: VK/Telegram/Яндекс.Картинки обычно требуют отдельные API/авторизацию/устойчивые селекторы. Для них в проекте заложена архитектура расширяемых адаптеров, но нужны отдельные ключи и согласованная реализация под конкретные правила доступа.
+Изображения сохраняются в S3 или локально и отдаются через `/files/...` на сервере приложения.
 
 ## Быстрый запуск (локально, без Docker)
 
@@ -61,7 +58,7 @@
 Берётся из `.env`:
 
 - `FIRST_ADMIN_LOGIN`
-- `FIRST_ADMIN_EMAIL`
+- `FIRST_ADMIN_EMAIL` — по умолчанию `car_specific@mail.ru` (временно до подключения `orient@mapsnet.ru`)
 - `FIRST_ADMIN_PASSWORD`
 
 Если админ уже есть в БД, второй не создаётся.
@@ -71,33 +68,36 @@
 - Если SMTP не настроен, ссылка подтверждения выводится в консоль сервера (`[EMAIL DEBUG] ...`).
 - Для боевого режима заполните SMTP-параметры в `.env`.
 
-## Настройка почты через Mail.ru
+## Настройка почты
 
-1. Войдите в нужный ящик Mail.ru.
-2. Включите двухфакторную аутентификацию.
-3. Создайте пароль для внешнего приложения (SMTP) в настройках безопасности Mail.ru.
-4. В `.env` задайте:
+Для локальной разработки и тестирования регистрации используется ящик **car_specific@mail.ru**.
+После подключения домена **mapsnet.ru** замените параметры на **orient@mapsnet.ru**.
+
+Пример для Mail.ru (временный):
 
 ```env
 SMTP_HOST=smtp.mail.ru
 SMTP_PORT=465
-SMTP_USER=your_mailbox@mail.ru
-SMTP_PASSWORD=пароль_приложения_mailru
-SMTP_SENDER=your_mailbox@mail.ru
+SMTP_USER=car_specific@mail.ru
+SMTP_PASSWORD=пароль_от_ящика
+SMTP_SENDER=car_specific@mail.ru
 SMTP_USE_SSL=true
 SMTP_USE_TLS=false
 SMTP_TIMEOUT_SECONDS=20
 ```
 
-5. Перезапустите сервер приложения.
-6. Проверьте регистрацию нового пользователя — письмо подтверждения должно прийти в почту.
+Если SMTP не настроен, ссылка подтверждения выводится в консоль сервера (`[EMAIL DEBUG] ...`).
 
-Альтернатива для порта `587`:
+Для продакшена на REG.RU (orient@mapsnet.ru):
 
 ```env
-SMTP_PORT=587
-SMTP_USE_SSL=false
-SMTP_USE_TLS=true
+SMTP_HOST=mail.hosting.reg.ru
+SMTP_PORT=465
+SMTP_USER=orient@mapsnet.ru
+SMTP_PASSWORD=пароль_от_ящика
+SMTP_SENDER=orient@mapsnet.ru
+SMTP_USE_SSL=true
+SMTP_USE_TLS=false
 ```
 
 ## Подключение Yandex Cloud S3

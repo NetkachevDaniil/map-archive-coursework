@@ -1,97 +1,151 @@
-# Как подключить домен o-maps.net.ru — пошагово
+# Подключение домена o-maps.net.ru (REG.RU) — полная инструкция
 
-Домен **куплен** — это только «адрес» в интернете. Чтобы по нему открывался ваш сайт OrientMaps.Net, нужно связать домен с **сервером**, где запущено приложение.
-
----
-
-## Что понадобится
-
-1. **Домен** `o-maps.net.ru` (у вас уже есть).
-2. **VPS/сервер** — виртуальная машина с белым IP (например Timeweb, Selectel, REG.RU VPS, Yandex Cloud).
-3. **Сайт на сервере** — OrientMaps запущен через Docker или `uvicorn`.
-4. Доступ к **панели регистратора домена** (где покупали `.net.ru`).
+Домен **куплен на REG.RU** — это адрес сайта в интернете. Чтобы по адресу `https://o-maps.net.ru` открывался **OrientMaps.Net**, нужно связать домен с сервером, где запущено приложение.
 
 ---
 
-## Шаг 1. Узнать IP сервера
+## Что у вас уже должно быть
 
-На VPS выполните:
+| Компонент | Зачем |
+|-----------|--------|
+| Домен `o-maps.net.ru` на REG.RU | Адрес сайта |
+| VPS (сервер с белым IP) | Где работает FastAPI + PostgreSQL |
+| Yandex Object Storage (S3) | Хранение изображений карт |
+| Git-репозиторий проекта | Код приложения |
+
+> Домен **не может** указывать на ваш домашний ПК (`localhost`). Нужен VPS с публичным IP.
+
+---
+
+## Часть 1. REG.RU — настройка DNS
+
+### Шаг 1.1. Войти в личный кабинет
+
+1. Откройте [https://www.reg.ru](https://www.reg.ru) → **Войти**.
+2. **Домены** → выберите **o-maps.net.ru**.
+3. Откройте раздел **«DNS-серверы и управление зоной»** (или **«Управление DNS»**).
+
+### Шаг 1.2. DNS-серверы
+
+**Вариант А (проще):** оставить DNS REG.RU (ns1.reg.ru, ns2.reg.ru) — тогда записи добавляете прямо в панели REG.RU.
+
+**Вариант Б:** если VPS-провайдер даёт свои NS — укажите их в REG.RU и настраивайте DNS у хостера.
+
+Для курсового проекта обычно достаточно **варианта А**.
+
+### Шаг 1.3. Узнать IP вашего VPS
+
+На сервере (SSH):
 
 ```bash
 curl -4 ifconfig.me
 ```
 
-Или посмотрите IP в панели хостинга. Пример: `185.12.34.56`.
+Или IP указан в панели Timeweb / Selectel / REG.RU VPS. Пример: `185.12.34.56`.
 
-Этот IP нужно «привязать» к домену.
+### Шаг 1.4. Добавить DNS-записи в REG.RU
 
----
+В зоне домена **o-maps.net.ru** добавьте:
 
-## Шаг 2. Настроить DNS у регистратора
-
-Зайдите в личный кабинет, где куплен домен → раздел **DNS / Управление зоной / DNS-серверы**.
-
-### Если DNS ведёт регистратор
-
-Добавьте записи:
-
-| Тип | Имя (Host) | Значение | TTL |
-|-----|------------|----------|-----|
-| **A** | `@` | `185.12.34.56` (ваш IP) | 3600 |
+| Тип | Subdomain / Host | Значение | TTL |
+|-----|------------------|----------|-----|
+| **A** | `@` | `185.12.34.56` (ваш IP VPS) | 3600 |
 | **A** | `www` | `185.12.34.56` (тот же IP) | 3600 |
 
 - `@` — это сам домен `o-maps.net.ru`
 - `www` — это `www.o-maps.net.ru`
 
-Сохраните. Обновление DNS занимает от **5 минут до 24 часов**.
+Сохраните. Обновление DNS: **от 5 минут до 24 часов**.
 
-### Проверка с вашего ПК
+### Шаг 1.5. Проверка с вашего ПК (Windows)
 
 ```powershell
 nslookup o-maps.net.ru
 ```
 
-В ответе должен быть ваш IP сервера.
+В ответе должен быть **IP вашего VPS**. Если старый IP или «не найден» — подождите или проверьте записи в REG.RU.
 
 ---
 
-## Шаг 3. Запустить сайт на сервере
+## Часть 2. VPS — подготовка сервера
 
-### Вариант A — Docker (рекомендуется)
-
-На сервере в папке проекта:
+Подключитесь по SSH (логин/пароль или ключ из панели REG.RU / хостера):
 
 ```bash
-git clone https://github.com/NetkachevDaniil/map-archive-coursework.git
-cd map-archive-coursework
+ssh root@185.12.34.56
+```
+
+### Шаг 2.1. Обновление и базовые пакеты (Ubuntu 22.04/24.04)
+
+```bash
+apt update && apt upgrade -y
+apt install -y git docker.io docker-compose-plugin nginx certbot python3-certbot-nginx ufw
+```
+
+### Шаг 2.2. Firewall
+
+```bash
+ufw allow OpenSSH
+ufw allow 'Nginx Full'
+ufw enable
+```
+
+---
+
+## Часть 3. Развёртывание OrientMaps.Net
+
+### Шаг 3.1. Клонировать проект
+
+```bash
+cd /opt
+git clone https://github.com/NetkachevDaniil/map-archive-coursework.git orientmaps
+cd orientmaps
+```
+
+### Шаг 3.2. Файл `.env`
+
+```bash
 cp .env.example .env
-# отредактируйте .env: DATABASE_URL, S3, SECRET_KEY и т.д.
-docker compose up -d --build
+nano .env
 ```
 
-Приложение обычно слушает порт **8000** внутри контейнера.
+Минимально заполните:
 
-### Вариант B — вручную
+```env
+SECRET_KEY=длинная-случайная-строка-32+символов
+DATABASE_URL=postgresql+psycopg2://postgres:postgres@db:5432/orientmaps
+
+USE_S3=true
+S3_ENDPOINT_URL=https://storage.yandexcloud.net
+S3_ACCESS_KEY_ID=ваш_ключ
+S3_SECRET_ACCESS_KEY=ваш_секрет
+S3_BUCKET_NAME=orientmaps-archive
+S3_REGION=ru-central1
+
+FIRST_ADMIN_LOGIN=admin
+FIRST_ADMIN_EMAIL=car_specific@mail.ru
+FIRST_ADMIN_PASSWORD=надёжный_пароль
+```
+
+### Шаг 3.3. Запуск Docker
 
 ```bash
-pip install -r requirements.txt
-uvicorn app.main:app --host 127.0.0.1 --port 8000
+docker compose up -d --build
+docker compose ps
+docker compose logs -f app
 ```
+
+Приложение слушает **порт 8000** внутри сервера.
 
 ---
 
-## Шаг 4. Nginx — «входная дверь» для домена
+## Часть 4. Nginx — привязка домена к приложению
 
-Nginx принимает запросы на `o-maps.net.ru` и передаёт их вашему FastAPI.
-
-Установка (Ubuntu):
+Создайте конфиг:
 
 ```bash
-sudo apt update
-sudo apt install nginx
+nano /etc/nginx/sites-available/o-maps.net.ru
 ```
-
-Файл `/etc/nginx/sites-available/o-maps`:
 
 ```nginx
 server {
@@ -113,75 +167,105 @@ server {
 Активация:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/o-maps /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+ln -s /etc/nginx/sites-available/o-maps.net.ru /etc/nginx/sites-enabled/
+nginx -t
+systemctl reload nginx
 ```
 
-Откройте в браузере: `http://o-maps.net.ru` — должен открыться сайт (пока без HTTPS).
+Проверка: откройте `http://o-maps.net.ru` — должен открыться сайт (пока без HTTPS).
 
 ---
 
-## Шаг 5. HTTPS (замок в браузере)
+## Часть 5. HTTPS (Let's Encrypt)
 
 ```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d o-maps.net.ru -d www.o-maps.net.ru
+certbot --nginx -d o-maps.net.ru -d www.o-maps.net.ru
 ```
 
-Certbot сам выпустит бесплатный сертификат Let's Encrypt и настроит редирект HTTP → HTTPS.
+- Укажите email для уведомлений.
+- Согласитесь с условиями.
+- Certbot сам настроит редирект HTTP → HTTPS.
 
-После этого сайт: **https://o-maps.net.ru**
+Итог: **https://o-maps.net.ru**
+
+Сертификат продлевается автоматически (cron certbot).
 
 ---
 
-## Шаг 6. Что где лежит — краткая схема
+## Часть 6. REG.RU — что ещё проверить в панели
+
+1. **Домен активен** — оплачен, не просрочен.
+2. **DNS-записи** — A для `@` и `www` указывают на VPS.
+3. **Почта** — для локальной разработки и тестирования регистрации используйте **car_specific@mail.ru** (Mail.ru SMTP). После подключения домена mapsnet.ru замените на **orient@mapsnet.ru**:
+
+```env
+SMTP_HOST=smtp.mail.ru
+SMTP_PORT=465
+SMTP_USER=car_specific@mail.ru
+SMTP_PASSWORD=пароль_от_ящика
+SMTP_SENDER=car_specific@mail.ru
+SMTP_USE_SSL=true
+SMTP_USE_TLS=false
+```
+
+Для продакшена на REG.RU:
+
+```env
+SMTP_HOST=mail.hosting.reg.ru
+SMTP_PORT=465
+SMTP_USER=orient@mapsnet.ru
+SMTP_PASSWORD=пароль_от_ящика
+SMTP_SENDER=orient@mapsnet.ru
+SMTP_USE_SSL=true
+SMTP_USE_TLS=false
+```
+
+(Точные SMTP-параметры смотрите в справке REG.RU для вашего тарифа хостинга/почты.)
+
+---
+
+## Схема работы
 
 ```
-Пользователь в браузере
-        ↓
-   DNS: o-maps.net.ru → IP сервера
-        ↓
-   Nginx (порт 443 HTTPS)
-        ↓
-   FastAPI / uvicorn (порт 8000)
-        ↓
-   PostgreSQL + S3 (картинки)
+Браузер → o-maps.net.ru (DNS REG.RU → IP VPS)
+       → Nginx :443 HTTPS
+       → FastAPI :8000
+       → PostgreSQL + Yandex S3 (картинки)
 ```
 
 ---
 
 ## Частые проблемы
 
-| Проблема | Причина | Решение |
-|----------|---------|---------|
-| «Сайт не открывается» | DNS ещё не обновился | Подождать, проверить `nslookup` |
-| «502 Bad Gateway» | приложение не запущено | `docker compose ps`, перезапуск |
-| «Connection refused» | Nginx не настроен / firewall | открыть порты 80 и 443 |
-| Картинки не грузятся | S3 ключи в `.env` | проверить `USE_S3`, `S3_*` |
+| Симптом | Решение |
+|---------|---------|
+| «Сайт не открывается» | Проверить `nslookup`, подождать DNS |
+| «502 Bad Gateway» | `docker compose ps`, перезапуск `docker compose up -d` |
+| «Connection refused» | Nginx не запущен или firewall блокирует 80/443 |
+| Картинки не грузятся | Проверить `USE_S3` и ключи в `.env` |
+| REG.RU показывает «парковку» | A-запись не на VPS или DNS ещё не обновился |
 
 ---
 
-## Favicon (иконка во вкладке)
+## Чеклист перед сдачей курсовой
 
-Уже в проекте: `app/static/favicon.svg`, подключён в `base.html`.
-
-После деплоя обновите страницу с Ctrl+F5 — во вкладке будет иконка **OM**.
-
----
-
-## Если сайт только на вашем компьютере (без VPS)
-
-Домен **не сможет** указывать на `localhost`. Нужен либо VPS, либо туннель (ngrok и т.п.) — для курсового и production обычно берут VPS.
-
----
-
-## Итог — минимальный чеклист
-
-- [ ] Есть VPS с белым IP
-- [ ] A-запись `@` и `www` → IP VPS
-- [ ] `nslookup o-maps.net.ru` показывает правильный IP
-- [ ] Приложение запущено на порту 8000
-- [ ] Nginx проксирует домен на 8000
+- [ ] A-запись `@` и `www` → IP VPS в REG.RU
+- [ ] `nslookup o-maps.net.ru` → правильный IP
+- [ ] `docker compose up -d` на сервере
+- [ ] Nginx проксирует на порт 8000
 - [ ] Certbot выдал HTTPS
 - [ ] Открывается https://o-maps.net.ru
+- [ ] Регистрация / вход / каталог / модерация работают
+- [ ] Картинки грузятся из S3
+
+---
+
+## Обновление сайта после изменений в коде
+
+На VPS:
+
+```bash
+cd /opt/orientmaps
+git pull
+docker compose up -d --build
+```

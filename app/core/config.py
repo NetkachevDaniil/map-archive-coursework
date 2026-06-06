@@ -20,18 +20,16 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/orientmaps"
 
     first_admin_login: str = "admin"
-    first_admin_email: EmailStr = "admin@example.com"
+    first_admin_email: EmailStr = "car_specific@mail.ru"
     first_admin_password: str = "admin12345"
     omaps_profile_login: str = "o-maps.spb.ru"
     omaps_profile_password: str = "OMaps2505!"
-    omephi_profile_login: str = "o-mephi.net"
-    omephi_profile_password: str = "OMephi2505!"
 
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None
     smtp_password: str | None = None
-    smtp_sender: EmailStr = "no-reply@example.com"
+    smtp_sender: EmailStr = "car_specific@mail.ru"
     smtp_use_ssl: bool = False
     smtp_use_tls: bool = True
     smtp_timeout_seconds: int = 20
