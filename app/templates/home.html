@@ -1,29 +1,43 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="feed">
+<section class="feed-header">
+    <h1 class="page-title">Лента карт</h1>
+    <p class="page-subtitle">Свежие публикации и одобренные импорты</p>
+</section>
+
+<section class="feed feed-grid">
     {% for item in posts %}
-        <article class="post-card">
-            <div class="post-head">
-                <span>{{ item.post.author.login if item.post.author else item.post.parsed_source or "Импорт" }}</span>
-                <span>{{ item.post.created_at.strftime("%d.%m.%Y") }}</span>
-            </div>
-            <a href="/maps/{{ item.post.id }}" class="post-content-link">
-                <img src="{{ item.image_url }}" alt="Карта">
-                <div class="post-info">
-                    <h3>{{ item.post.title }}</h3>
-                    <p>Территория: {{ item.post.territory }}</p>
-                    <p>Соревнование: {{ item.post.event.name if item.post.event else "Неизвестно" }}</p>
-                    <p>Год: {{ item.post.year_of_event or "Неизвестно" }} | Масштаб: {% if item.post.scale_denominator %}1:{{ item.post.scale_denominator }}{% else %}неизвестно{% endif %}</p>
+        <article class="post-card reveal-card">
+            <a href="/maps/{{ item.post.id }}" class="post-media-link">
+                <div class="post-media">
+                    <img src="{{ item.image_url }}" alt="{{ item.post.title }}" loading="lazy">
+                    <div class="post-media-overlay">
+                        <span class="overlay-action">Открыть</span>
+                    </div>
                 </div>
             </a>
-            <div class="post-meta">
-                <span>❤ {{ item.likes_count }}</span>
-                <span>💬 {{ item.comments_count }}</span>
-                <a href="/maps/{{ item.post.id }}/download">⬇ Скачать</a>
+            <div class="post-body">
+                <div class="post-head">
+                    <span class="post-author">{{ item.post.author.login if item.post.author else item.post.parsed_source or "Импорт" }}</span>
+                    <time class="post-date">{{ item.post.created_at.strftime("%d.%m.%Y") }}</time>
+                </div>
+                <a href="/maps/{{ item.post.id }}" class="post-title-link">
+                    <h3>{{ item.post.title }}</h3>
+                </a>
+                <ul class="post-tags">
+                    <li>{{ item.post.territory }}</li>
+                    <li>{{ item.post.year_of_event or "—" }}</li>
+                    <li>{% if item.post.scale_denominator %}1:{{ item.post.scale_denominator }}{% else %}—{% endif %}</li>
+                </ul>
+                <div class="post-meta">
+                    <span class="meta-item" title="Лайки">♥ {{ item.likes_count }}</span>
+                    <span class="meta-item" title="Комментарии">◌ {{ item.comments_count }}</span>
+                    <a class="meta-link" href="/maps/{{ item.post.id }}/download">↓</a>
+                </div>
             </div>
         </article>
     {% else %}
-        <div class="empty-box">Пока нет опубликованных карт.</div>
+        <div class="empty-box reveal-card">Пока нет опубликованных карт.</div>
     {% endfor %}
 </section>
 {% endblock %}

@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     s3_public_base_url: str | None = None
 
     local_upload_dir: str = str(BASE_DIR / "uploads")
+    site_background_url: str = "https://storage.yandexcloud.net/orientmaps-archive/ui/site-background.jpg"
 
     parser_user_agent: str = "OrientMapsBot/1.0 (+coursework parser)"
     parser_days_back_default: int = 7
