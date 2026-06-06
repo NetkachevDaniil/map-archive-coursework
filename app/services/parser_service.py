@@ -13,14 +13,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import get_password_hash
-from app.models.models import MapPost, ParseStatus, User, UserRole
-from app.services.map_fields import build_territory, normalize_territory
+from app.models.models import MapPost, ParseStatus, Region, User, UserRole
+from app.services.bootstrap_service import ensure_default_regions
+from app.services.map_fields import normalize_coordinates, resolve_coordinates, store_coordinates, store_optional_text
 from app.services.storage_service import storage_service
 
 OMAPS_SOURCES = [
     ("https://o-maps.spb.ru/sheet-spb.html", "Санкт-Петербург"),
     ("https://o-maps.spb.ru/sheet-moscow.html", "Москва"),
-    ("https://o-maps.spb.ru/sheet-pskov.html", "Псков"),
 ]
 
 OMAPS_JS_FEEDS = {
@@ -32,14 +32,19 @@ OMAPS_JS_FEEDS = {
     "https://o-maps.spb.ru/sheet-moscow.html": [
         "https://raw.githubusercontent.com/efradkin/o-maps/main/js/maps-moscow.js",
     ],
-    "https://o-maps.spb.ru/sheet-pskov.html": [
-        "https://raw.githubusercontent.com/efradkin/o-maps/main/js/maps-pskov.js",
-    ],
 }
 
 
+OMAPS_PUBLIC_BASE = "https://o-maps.spb.ru/"
 OMAPS_AUTHORS_JS = "https://raw.githubusercontent.com/efradkin/o-maps/main/js/authors.js"
 OMAPS_OWNERS_JS = "https://raw.githubusercontent.com/efradkin/o-maps/main/js/owners.js"
+
+
+def _is_pskov_item(*, region_name: str = "", image_url: str = "", title: str = "", source_url: str = "") -> bool:
+    if (region_name or "").strip().casefold() == "псков":
+        return True
+    blob = " ".join(filter(None, [image_url, source_url, title])).casefold()
+    return "/pskov/" in blob or "original_maps/pskov" in blob or "maps/pskov" in blob
 
 
 @dataclass
@@ -52,7 +57,8 @@ class ParsedItem:
     scale_denominator: int | None = None
     cartographer: str | None = None
     rights_holder: str | None = None
-    territory: str = "Неизвестно-Неизвестно-Неизвестно"
+    region_name: str = "Неизвестно"
+    coordinates: str | None = None
     description: str = ""
     published_at: datetime | None = None
 
@@ -82,11 +88,27 @@ def _owners_lookup() -> dict[str, str]:
         return {}
 
 
+def _strip_html(raw: str) -> str:
+    return re.sub(r"<[^>]+>", "", raw or "").strip()
+
+
 def _clean_owner_text(raw: str) -> str | None:
-    text = re.sub(r"^\s*©\s*", "", raw).strip()
+    text = _strip_html(raw)
+    text = re.sub(r"^\s*©\s*", "", text).strip()
     text = text.split("//")[0].strip()
-    if not text or text.lower().startswith("по вопросам"):
+    if not text:
         return None
+    person = re.search(
+        r"[-–—]\s*([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+){1,3})",
+        text,
+    )
+    if person:
+        return person.group(1).strip().rstrip(",")[:255]
+    if text.lower().startswith("по вопросам"):
+        return None
+    club = re.search(r'клуб[ауе]?\s+[«"]?([^»".]+)[»"]?', text, flags=re.I)
+    if club:
+        return f'Клуб «{club.group(1).strip()}»'[:255]
     text = re.split(r"\s[-–—|]\s|\[", text)[0].strip()
     if re.search(r"[А-ЯЁа-яё]", text) and len(text) >= 4:
         return text[:255]
@@ -100,15 +122,15 @@ def _resolve_person_name(code: str | None, *, prefer_owner: bool = False) -> str
     authors = _authors_lookup()
     owners = _owners_lookup()
 
-    if key in authors:
-        name = authors[key].split("//")[0].strip()
-        if re.search(r"[А-ЯЁа-яё]", name):
-            return name[:255]
-
     if prefer_owner and key in owners:
         cleaned = _clean_owner_text(owners[key])
         if cleaned:
             return cleaned
+
+    if key in authors:
+        name = _strip_html(authors[key]).split("//")[0].strip()
+        if re.search(r"[А-ЯЁа-яё]", name):
+            return name[:255]
 
     if not prefer_owner and key in owners:
         cleaned = _clean_owner_text(owners[key])
@@ -132,33 +154,196 @@ def _build_headers() -> dict:
     }
 
 
+def _image_download_headers(url: str) -> dict:
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "image/avif,image/webp,image/apng,image/jpeg,image/*,*/*;q=0.8",
+        "Accept-Language": "ru-RU,ru;q=0.9",
+    }
+    if "o-maps.spb.ru" in url:
+        headers["Referer"] = "https://o-maps.spb.ru/"
+    elif "githubusercontent.com" in url:
+        headers["Referer"] = "https://github.com/"
+    return headers
+
+
 def _fetch_html(url: str) -> str:
     headers = _build_headers()
     with httpx.Client(timeout=25, headers=headers, follow_redirects=True) as client:
         response = client.get(url)
         response.raise_for_status()
-        return response.text
+        return response.content.decode("utf-8")
 
 
 def _download_bytes(url: str) -> bytes:
-    with httpx.Client(timeout=40, headers=_build_headers(), follow_redirects=True) as client:
+    headers = _image_download_headers(url)
+    with httpx.Client(timeout=40, headers=headers, follow_redirects=True) as client:
         response = client.get(url)
         response.raise_for_status()
+        content_type = (response.headers.get("content-type") or "").lower()
+        if "text/html" in content_type and len(response.content) < 50000:
+            raise ValueError(f"По URL получена HTML-страница, а не изображение: {url}")
+        if len(response.content) < 256:
+            raise ValueError(f"Слишком маленький файл ({len(response.content)} байт): {url}")
         return response.content
 
 
+def _expand_js_chunks(chunks: list[str]) -> list[str]:
+    expanded: list[str] = []
+    for chunk in chunks:
+        if chunk.count("name:") <= 1:
+            expanded.append(chunk)
+            continue
+        for part in re.split(r"\}\s*,\s*\{", chunk.strip().strip(",")):
+            part = part.strip()
+            if not part:
+                continue
+            if not part.startswith("{"):
+                part = "{" + part
+            if not part.endswith("}"):
+                part = part + "}"
+            if re.search(r"name\s*:\s*'", part):
+                expanded.append(part)
+    return expanded
+
+
+def _map_metadata_text(chunk: str) -> str:
+    parts: list[str] = []
+    for field in ("name", "info", "url", "link"):
+        single = re.search(rf"{field}\s*:\s*'((?:\\'|[^'])*)'", chunk)
+        if single:
+            parts.append(single.group(1))
+        double = re.search(rf'{field}\s*:\s*"((?:\\"|[^"])*)"', chunk)
+        if double:
+            parts.append(double.group(1))
+        array = re.search(rf"{field}\s*:\s*\[(.*?)\]", chunk, flags=re.DOTALL)
+        if array:
+            parts.extend(re.findall(r"'([^']+)'", array.group(1)))
+    return " ".join(parts) if parts else chunk
+
+
+_STANDARD_MAP_SCALES = frozenset({4000, 5000, 7500, 10000, 15000, 20000, 25000, 40000})
+
+
 def _extract_scale(text: str) -> int | None:
-    m = re.search(r"1\s*:\s*(\d{3,6})", text)
-    if not m:
-        return None
-    return int(m.group(1))
+    haystack = text or ""
+
+    match = re.search(r"1\s*:\s*(\d{3,6})", haystack)
+    if match:
+        value = int(match.group(1))
+        if value in _STANDARD_MAP_SCALES:
+            return value
+
+    for pattern in (
+        r"(?:масштаб(?:е|а)?|генерализац(?:ией|ия)?\s+под|лонг\s+в)\s+(?:1\s*:?\s*)?(\d{4,5})\b",
+        r"\bпод(?:\s+[\w-]+){0,4}\s+(\d{4,5})\b",
+    ):
+        match = re.search(pattern, haystack, flags=re.I)
+        if match:
+            value = int(match.group(1))
+            if value in _STANDARD_MAP_SCALES:
+                return value
+
+    for match in re.finditer(
+        r"(?:^|[_\s])(4000|5000|7500|10000|15000|20000|25000|40000)(?:[_\.\s,]|$)",
+        haystack,
+    ):
+        return int(match.group(1))
+    return None
+
+
+_MIN_MAP_YEAR = 1955
+
+
+def _is_plausible_map_year(value: int) -> bool:
+    return _MIN_MAP_YEAR <= value <= datetime.now().year + 1
+
+
+def _extract_year_from_date_field(chunk: str) -> int | None:
+    single = re.search(r"date\s*:\s*'(\d{4})-\d{2}-\d{2}'", chunk)
+    if single:
+        year = int(single.group(1))
+        if _is_plausible_map_year(year):
+            return year
+
+    array = re.search(r"date\s*:\s*\[(.*?)\]", chunk, flags=re.DOTALL)
+    if array:
+        years = [
+            int(match)
+            for match in re.findall(r"'(\d{4})-\d{2}-\d{2}'", array.group(1))
+            if _is_plausible_map_year(int(match))
+        ]
+        if years:
+            return max(years)
+    return None
+
+
+def _extract_years_from_paths(*paths: str) -> list[int]:
+    years: list[int] = []
+    for path in paths:
+        if not path:
+            continue
+        basename = path.rsplit("/", 1)[-1].split("?", 1)[0]
+        dated_prefix = re.match(r"^((?:19|20)\d{2})\d{4}[_\-.]", basename)
+        if dated_prefix:
+            year = int(dated_prefix.group(1))
+            if _is_plausible_map_year(year):
+                years.append(year)
+        for match in re.finditer(r"(?<![\d])((?:19|20)\d{2})(?![\d])", basename):
+            year = int(match.group(1))
+            if _is_plausible_map_year(year):
+                years.append(year)
+    return years
+
+
+def _collect_chunk_paths(chunk: str, *, image_url: str, raw_link: str | None, preview_url: str | None) -> list[str]:
+    paths = [image_url, raw_link or "", preview_url or ""]
+    for field in ("url", "link"):
+        single = re.search(rf"{field}\s*:\s*'([^']+)'", chunk)
+        if single:
+            paths.append(single.group(1))
+        array = re.search(rf"{field}\s*:\s*\[(.*?)\]", chunk, flags=re.DOTALL)
+        if array:
+            paths.extend(re.findall(r"'([^']+)'", array.group(1)))
+    return paths
+
+
+def _resolve_map_year(*, chunk: str, title: str, image_url: str, raw_link: str | None = None, preview_url: str | None = None) -> int | None:
+    year_match = re.search(r"year\s*:\s*(\d{4})", chunk)
+    if year_match:
+        year = int(year_match.group(1))
+        if _is_plausible_map_year(year):
+            return year
+
+    from_date = _extract_year_from_date_field(chunk)
+    if from_date is not None:
+        return from_date
+
+    paths = _collect_chunk_paths(chunk, image_url=image_url, raw_link=raw_link, preview_url=preview_url)
+    path_years = _extract_years_from_paths(*paths)
+    if path_years:
+        return max(path_years)
+
+    title_years = _extract_years_from_paths(title)
+    if title_years:
+        return max(title_years)
+
+    return None
 
 
 def _extract_year(text: str) -> int | None:
-    m = re.search(r"(19|20)\d{2}", text)
-    if not m:
-        return None
-    return int(m.group(0))
+    path_years = _extract_years_from_paths(text)
+    if path_years:
+        return max(path_years)
+    match = re.search(r"(?<![\d])((?:19|20)\d{2})(?![\d])", text or "")
+    if match:
+        year = int(match.group(1))
+        if _is_plausible_map_year(year):
+            return year
+    return None
 
 
 def _extract_image_link_from_row(row) -> str | None:
@@ -171,19 +356,53 @@ def _extract_image_link_from_row(row) -> str | None:
 
 
 def _extract_link_from_js_chunk(chunk: str) -> str | None:
-    # link: '...'
-    m = re.search(r"link\s*:\s*'([^']+)'", chunk)
-    if m:
-        return m.group(1)
-    # link: ["...", ...]
-    m = re.search(r"link\s*:\s*\[\s*'([^']+)'", chunk)
-    if m:
-        return m.group(1)
-    # link: {name: '...'}
-    m = re.search(r"link\s*:\s*\{[^{}]*'([^']+\.(?:jpg|jpeg|png|webp|gif|tif|tiff)[^']*)'", chunk, flags=re.I)
-    if m:
-        return m.group(1)
-    return None
+    links: list[str] = []
+    single = re.search(r"link\s*:\s*'([^']+)'", chunk)
+    if single:
+        links.append(single.group(1))
+    array_match = re.search(r"link\s*:\s*\[(.*?)\]", chunk, flags=re.DOTALL)
+    if array_match:
+        links.extend(re.findall(r"'([^']+)'", array_match.group(1)))
+    object_match = re.search(r"link\s*:\s*\{[^{}]*'([^']+\.(?:jpg|jpeg|png|webp|gif|tif|tiff)[^']*)'", chunk, flags=re.I)
+    if object_match:
+        links.append(object_match.group(1))
+    url_match = re.search(r"url\s*:\s*'([^']+)'", chunk)
+    if url_match:
+        links.append(url_match.group(1))
+    return _pick_best_map_link(links)
+
+
+def _pick_best_map_link(links: list[str]) -> str | None:
+    if not links:
+        return None
+
+    def priority(link: str) -> tuple[int, int]:
+        lower = link.lower()
+        if lower.endswith((".jpg", ".jpeg")):
+            return (0, len(link))
+        if lower.endswith(".png"):
+            return (1, len(link))
+        if lower.endswith(".webp"):
+            return (2, len(link))
+        if lower.endswith(".gif"):
+            return (3, len(link))
+        if lower.endswith((".tif", ".tiff")):
+            return (8, len(link))
+        if lower.endswith(".pdf"):
+            return (9, len(link))
+        return (5, len(link))
+
+    return sorted(links, key=priority)[0]
+
+
+def _extract_bounds_from_js_chunk(chunk: str) -> list[tuple[float, float]] | None:
+    match = re.search(r"bounds\s*:\s*\[(.*?)\]", chunk, flags=re.DOTALL)
+    if not match:
+        return None
+    pairs = re.findall(r"([\d.]+)\s*,\s*([\d.]+)", match.group(1))
+    if not pairs:
+        return None
+    return [(float(lat), float(lon)) for lat, lon in pairs]
 
 
 def _extract_url_from_js_chunk(chunk: str) -> str | None:
@@ -226,40 +445,54 @@ def _to_absolute_link(raw_link: str, page_url: str) -> str:
     if value.startswith("http://") or value.startswith("https://"):
         return value
     cleaned = value.lstrip("./")
-    return f"https://raw.githubusercontent.com/efradkin/o-maps/main/{cleaned}"
+    if cleaned.startswith("original_maps/"):
+        return urljoin(OMAPS_PUBLIC_BASE, cleaned)
+    if cleaned.startswith("maps/"):
+        return f"https://raw.githubusercontent.com/efradkin/o-maps/main/{cleaned}"
+    return urljoin(page_url or OMAPS_PUBLIC_BASE, cleaned)
 
 
 def _parse_js_feed(js_url: str, page_url: str, region_name: str, limit: int = 50) -> list[ParsedItem]:
     js_text = _fetch_html(js_url)
     items: list[ParsedItem] = []
-    for chunk in _split_js_objects(js_text):
+    for chunk in _expand_js_chunks(_split_js_objects(js_text)):
         name_m = re.search(r"name\s*:\s*'([^']+)'", chunk)
         if not name_m:
             continue
         raw_link = _extract_link_from_js_chunk(chunk) or _extract_url_from_js_chunk(chunk)
         if not raw_link:
             continue
+        preview_url = _extract_url_from_js_chunk(chunk)
         image_url = _to_absolute_link(raw_link, page_url=page_url)
         if not re.search(r"\.(jpg|jpeg|png|webp|gif|tif|tiff)(\?|$)", image_url, flags=re.I):
             continue
-        year_m = re.search(r"year\s*:\s*(\d{4})", chunk)
+        title = name_m.group(1)[:200]
         author_m = re.search(r"author\s*:\s*'([^']+)'", chunk)
         owner_m = re.search(r"owner\s*:\s*'([^']+)'", chunk)
-        scale = _extract_scale(chunk)
+        scale = _extract_scale(_map_metadata_text(chunk))
         cartographer = _resolve_person_name(author_m.group(1) if author_m else None)
         rights_holder = _resolve_person_name(owner_m.group(1) if owner_m else None, prefer_owner=True)
+        bounds = _extract_bounds_from_js_chunk(chunk)
+        preview_abs = _to_absolute_link(preview_url, page_url=page_url) if preview_url else None
         items.append(
             ParsedItem(
                 source_name="o-maps.spb.ru",
                 page_url=page_url,
                 image_url=image_url,
-                title=name_m.group(1)[:200],
-                year=int(year_m.group(1)) if year_m else None,
+                title=title,
+                year=_resolve_map_year(
+                    chunk=chunk,
+                    title=title,
+                    image_url=image_url,
+                    raw_link=raw_link,
+                    preview_url=preview_abs,
+                ),
                 scale_denominator=scale,
                 cartographer=cartographer,
                 rights_holder=rights_holder,
-                territory=build_territory(region_name, name_m.group(1)),
-                description=f"Импорт из таблицы O-Maps: {page_url}",
+                region_name=region_name,
+                coordinates=resolve_coordinates(bounds=bounds),
+                description="",
             )
         )
         if len(items) >= limit:
@@ -279,11 +512,12 @@ def _parse_table_like_page(url: str, region_name: str, limit: int = 50) -> list[
         cols = [c.get_text(" ", strip=True) for c in row.select("td")]
         row_text = " ".join(cols)
         title = cols[1] if len(cols) > 1 else row_text[:180] or "Карта"
-        year = _extract_year(row_text)
+        img_abs = urljoin(url, img_href)
+        year = _extract_year(" ".join([row_text, title, img_href]))
         scale = _extract_scale(row_text)
         cartographer = _resolve_person_name(cols[8] if len(cols) >= 9 else None)
         rights_holder = _resolve_person_name(cols[10] if len(cols) >= 11 else None, prefer_owner=True)
-        territory = build_territory(region_name, title)
+        coordinates = resolve_coordinates(bounds=None)
         items.append(
             ParsedItem(
                 source_name="o-maps.spb.ru",
@@ -294,8 +528,9 @@ def _parse_table_like_page(url: str, region_name: str, limit: int = 50) -> list[
                 scale_denominator=scale,
                 cartographer=cartographer,
                 rights_holder=rights_holder,
-                territory=territory,
-                description=f"Импорт из таблицы O-Maps: {url}",
+                region_name=region_name,
+                coordinates=coordinates,
+                description="",
                 published_at=None,
             )
         )
@@ -314,8 +549,8 @@ def _parse_table_like_page(url: str, region_name: str, limit: int = 50) -> list[
             image_url = urljoin(url, link_m.group(1))
             if not re.search(r"\.(jpg|jpeg|png|webp|gif|tif|tiff)$", image_url, flags=re.I):
                 continue
-            year_m = re.search(r"year\s*:\s*(\d{4})", chunk)
-            scale = _extract_scale(chunk)
+            title = name_m.group(1)[:200]
+            scale = _extract_scale(_map_metadata_text(chunk))
             author_m = re.search(r"author\s*:\s*'([^']+)'", chunk)
             owner_m = re.search(r"owner\s*:\s*'([^']+)'", chunk)
             cartographer = _resolve_person_name(author_m.group(1) if author_m else None)
@@ -325,19 +560,38 @@ def _parse_table_like_page(url: str, region_name: str, limit: int = 50) -> list[
                     source_name="o-maps.spb.ru",
                     page_url=url,
                     image_url=image_url,
-                    title=name_m.group(1)[:200],
-                    year=int(year_m.group(1)) if year_m else None,
+                    title=title,
+                    year=_resolve_map_year(chunk=chunk, title=title, image_url=image_url, raw_link=link_m.group(1)),
                     scale_denominator=scale,
                     cartographer=cartographer,
                     rights_holder=rights_holder,
-                    territory=build_territory(region_name, name_m.group(1)),
-                    description=f"Импорт из таблицы O-Maps: {url}",
+                    region_name=region_name,
+                    coordinates=resolve_coordinates(bounds=None),
+                    description="",
                 )
             )
             if len(items) >= limit:
                 break
 
     return items
+
+
+def build_source_coordinates_lookup() -> dict[str, tuple[str, str | None]]:
+    lookup: dict[str, tuple[str, str | None]] = {}
+    for page_url, region_name in OMAPS_SOURCES:
+        for js_url in OMAPS_JS_FEEDS.get(page_url, []):
+            try:
+                js_text = _fetch_html(js_url)
+            except Exception:
+                continue
+            for chunk in _split_js_objects(js_text):
+                raw_link = _extract_link_from_js_chunk(chunk) or _extract_url_from_js_chunk(chunk)
+                if not raw_link:
+                    continue
+                image_url = _to_absolute_link(raw_link, page_url=page_url)
+                bounds = _extract_bounds_from_js_chunk(chunk)
+                lookup[image_url] = (region_name, resolve_coordinates(bounds=bounds))
+    return lookup
 
 
 def parse_recent_items(per_source_limit: int = 5) -> list[ParsedItem]:
@@ -353,7 +607,10 @@ def parse_recent_items(per_source_limit: int = 5) -> list[ParsedItem]:
                     page_items.extend(_parse_js_feed(js_url, page_url=url, region_name=region_name, limit=200))
                 except Exception:
                     continue
-        items.extend(page_items)
+        for item in page_items:
+            if _is_pskov_item(region_name=item.region_name, image_url=item.image_url, title=item.title):
+                continue
+            items.append(item)
     return items
 
 
@@ -368,7 +625,7 @@ def _ensure_omaps_publisher_user(db: Session) -> User:
         return user
     user = User(
         login=settings.omaps_profile_login,
-        email=f"o-maps-{uuid4().hex[:8]}@example.com",
+        email=f"omaps-import-{uuid4().hex[:8]}@mapsnet.ru",
         full_name="O-Maps Publisher",
         password_hash=get_password_hash(settings.omaps_profile_password),
         role=UserRole.USER,
@@ -379,6 +636,19 @@ def _ensure_omaps_publisher_user(db: Session) -> User:
     db.add(user)
     db.flush()
     return user
+
+
+def _get_or_create_region(db: Session, region_name: str | None) -> Region | None:
+    if not region_name or not region_name.strip():
+        return None
+    normalized = region_name.strip()
+    region = db.execute(select(Region).where(Region.name == normalized)).scalar_one_or_none()
+    if region:
+        return region
+    region = Region(name=normalized)
+    db.add(region)
+    db.flush()
+    return region
 
 
 def import_parsed_items_to_queue(db: Session, per_source_batch: int = 5) -> dict:
@@ -400,6 +670,9 @@ def import_parsed_items_to_queue(db: Session, per_source_batch: int = 5) -> dict
         for item in items:
             if loaded_from_source >= per_source_batch:
                 break
+            if _is_pskov_item(region_name=item.region_name, image_url=item.image_url, title=item.title):
+                skipped += 1
+                continue
             if item.image_url in seen_in_batch:
                 continue
             seen_in_batch.add(item.image_url)
@@ -410,26 +683,29 @@ def import_parsed_items_to_queue(db: Session, per_source_batch: int = 5) -> dict
                 continue
             try:
                 image_bytes = _download_bytes(item.image_url)
-                key = storage_service.upload_bytes(image_bytes, filename=item.image_url.rsplit("/", 1)[-1] or "parsed.jpg")
+                key = storage_service.upload_bytes(
+                    image_bytes,
+                    filename=item.image_url.rsplit("/", 1)[-1] or "parsed.jpg",
+                )
             except Exception as exc:
-                # Если загрузка/запись в хранилище не удалась (например, проблемы S3),
-                # оставляем внешний URL картинки, чтобы карточка всё равно появилась в модерации.
                 key = item.image_url
                 imported_with_external_url += 1
                 errors += 1
-                last_error = str(exc)
+                last_error = f"{item.image_url} -> {exc}"
 
+            region = _get_or_create_region(db, item.region_name)
             post = MapPost(
                 user_id=publisher_user.id,
+                region_id=region.id if region else None,
                 title=item.title or "Карта из парсинга",
-                territory=item.territory or "Неизвестно-Неизвестно-Неизвестно",
+                coordinates=store_coordinates(item.coordinates),
                 year_of_event=item.year,
                 scale_denominator=item.scale_denominator,
-                cartographer=item.cartographer,
-                rights_holder=item.rights_holder,
+                cartographer=store_optional_text(item.cartographer),
+                rights_holder=store_optional_text(item.rights_holder),
                 image_key=key,
                 source_url=item.image_url,
-                description=item.description or "Требуется модерация администратором.",
+                description=item.description.strip() if item.description else "",
                 parsed_source=item.source_name,
                 is_parsed=True,
                 parse_status=ParseStatus.PENDING,
