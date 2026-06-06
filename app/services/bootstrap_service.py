@@ -3,7 +3,17 @@ from sqlalchemy import select
 from app.core.config import get_settings
 from app.core.security import get_password_hash
 from app.db.session import SessionLocal
-from app.models.models import User, UserRole
+from app.data.russian_regions import RUSSIAN_REGIONS
+from app.models.models import Region, User, UserRole
+
+
+def ensure_default_regions() -> None:
+    with SessionLocal() as db:
+        for name in RUSSIAN_REGIONS:
+            exists = db.execute(select(Region.id).where(Region.name == name).limit(1)).scalar_one_or_none()
+            if not exists:
+                db.add(Region(name=name))
+        db.commit()
 
 
 def ensure_default_admin() -> None:
@@ -29,7 +39,6 @@ def ensure_default_admin() -> None:
 
         for login, password, full_name in [
             (settings.omaps_profile_login, settings.omaps_profile_password, "O-Maps Publisher"),
-            (settings.omephi_profile_login, settings.omephi_profile_password, "o-mephi.net Publisher"),
         ]:
             user = db.execute(select(User).where(User.login == login)).scalar_one_or_none()
             if user:
@@ -41,7 +50,7 @@ def ensure_default_admin() -> None:
             else:
                 user = User(
                     login=login,
-                    email=f"{login.replace('.', '-')}-publisher@example.com",
+                    email=f"{login.replace('.', '-')}@mapsnet.ru",
                     full_name=full_name,
                     password_hash=get_password_hash(password),
                     role=UserRole.USER,
@@ -51,3 +60,5 @@ def ensure_default_admin() -> None:
                 )
                 db.add(user)
         db.commit()
+
+    ensure_default_regions()
