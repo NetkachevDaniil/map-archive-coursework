@@ -74,7 +74,7 @@ class MapPost(Base):
     region_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("regions.id"), nullable=True, index=True)
     event_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("events.id"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    territory: Mapped[str] = mapped_column(String(255), default="Неизвестно-Неизвестно-Неизвестно", nullable=False, index=True)
+    coordinates: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     year_of_event: Mapped[int | None] = mapped_column(Integer, nullable=True)
     scale_denominator: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cartographer: Mapped[str | None] = mapped_column(String(255), nullable=True)

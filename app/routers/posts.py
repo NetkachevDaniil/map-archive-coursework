@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session, joinedload
 from app.deps import get_current_user, require_user
 from app.db.session import get_db
 from app.models.models import Comment, Event, Like, MapPost, ParseStatus, Region, User, UserRole
-from app.services.map_fields import is_valid_territory, normalize_territory
+from app.services.map_fields import (
+    is_valid_coordinates,
+    is_valid_region_name,
+    normalize_region_name,
+    store_coordinates,
+    store_optional_text,
+)
 from app.services.storage_service import storage_service
 from app.web import templates
 
@@ -18,7 +24,7 @@ router = APIRouter(prefix="/maps", tags=["maps"])
 def _get_or_create_region(db: Session, region_name: str | None) -> Region | None:
     if not region_name or not region_name.strip():
         return None
-    normalized = region_name.strip()
+    normalized = normalize_region_name(region_name)
     region = db.execute(select(Region).where(Region.name == normalized)).scalar_one_or_none()
     if region:
         return region
@@ -41,12 +47,23 @@ def _get_or_create_event(db: Session, event_name: str | None, region_id: UUID | 
     return event
 
 
+def _list_regions(db: Session) -> list[Region]:
+    return db.execute(select(Region).order_by(Region.name.asc())).scalars().all()
+
+
 @router.get("/create")
-def create_map_page(request: Request, current_user: User = Depends(require_user)):
+def create_map_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_user)):
     return templates.TemplateResponse(
         request=request,
         name="map_create.html",
-        context={"request": request, "current_user": current_user, "error": None, "similar_posts": [], "form_data": {}},
+        context={
+            "request": request,
+            "current_user": current_user,
+            "error": None,
+            "similar_posts": [],
+            "form_data": {},
+            "regions": _list_regions(db),
+        },
     )
 
 
@@ -54,7 +71,8 @@ def create_map_page(request: Request, current_user: User = Depends(require_user)
 def create_map_post(
     request: Request,
     title: str = Form(...),
-    territory: str = Form(""),
+    region_name: str = Form(...),
+    coordinates: str = Form(""),
     event_name: str = Form(""),
     year_of_event: int | None = Form(default=None),
     scale_denominator: int | None = Form(default=None),
@@ -65,44 +83,60 @@ def create_map_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_user),
 ):
+    regions = _list_regions(db)
+    form_data = {
+        "title": title,
+        "region_name": region_name,
+        "coordinates": coordinates,
+        "event_name": event_name,
+        "year_of_event": year_of_event,
+        "scale_denominator": scale_denominator,
+        "cartographer": cartographer,
+        "rights_holder": rights_holder,
+        "description": description,
+    }
+
     if not image.filename:
         return templates.TemplateResponse(
             request=request,
             name="map_create.html",
-            context={"request": request, "current_user": current_user, "error": "Выберите изображение карты", "similar_posts": [], "form_data": {}},
+            context={"request": request, "current_user": current_user, "error": "Выберите изображение карты", "similar_posts": [], "form_data": form_data, "regions": regions},
             status_code=400,
         )
 
-    if not is_valid_territory(territory):
+    if not title.strip():
         return templates.TemplateResponse(
             request=request,
             name="map_create.html",
-            context={
-                "request": request,
-                "current_user": current_user,
-                "error": "Поле 'Территория' должно быть в формате: Регион-Город-Район",
-                "similar_posts": [],
-                "form_data": {
-                    "title": title,
-                    "territory": territory,
-                    "event_name": event_name,
-                    "year_of_event": year_of_event,
-                    "scale_denominator": scale_denominator,
-                    "cartographer": cartographer,
-                    "rights_holder": rights_holder,
-                    "description": description,
-                },
-            },
+            context={"request": request, "current_user": current_user, "error": "Укажите название карты", "similar_posts": [], "form_data": form_data, "regions": regions},
             status_code=400,
         )
 
-    normalized_territory = normalize_territory(territory)
+    if not is_valid_region_name(region_name):
+        return templates.TemplateResponse(
+            request=request,
+            name="map_create.html",
+            context={"request": request, "current_user": current_user, "error": "Укажите регион карты", "similar_posts": [], "form_data": form_data, "regions": regions},
+            status_code=400,
+        )
+
+    if not is_valid_coordinates(coordinates):
+        return templates.TemplateResponse(
+            request=request,
+            name="map_create.html",
+            context={"request": request, "current_user": current_user, "error": "Координаты должны быть в формате: 55.92747, 37.69615", "similar_posts": [], "form_data": form_data, "regions": regions},
+            status_code=400,
+        )
+
+    region = _get_or_create_region(db, region_name)
+    normalized_coordinates = store_coordinates(coordinates)
     similar_posts = (
         db.execute(
             select(MapPost)
             .where(
                 MapPost.is_public.is_(True),
-                MapPost.territory == normalized_territory,
+                MapPost.region_id == (region.id if region else None),
+                MapPost.coordinates == normalized_coordinates,
                 MapPost.year_of_event == year_of_event,
             )
             .order_by(MapPost.created_at.desc())
@@ -112,19 +146,19 @@ def create_map_post(
         .all()
     )
 
-    event = _get_or_create_event(db, event_name, None, year_of_event, None)
+    event = _get_or_create_event(db, event_name, region.id if region else None, year_of_event, None)
     image_key = storage_service.save_upload(image, folder="maps")
 
     post = MapPost(
         user_id=current_user.id,
-        region_id=None,
+        region_id=region.id if region else None,
         event_id=event.id if event else None,
         title=title.strip(),
-        territory=normalized_territory,
+        coordinates=normalized_coordinates,
         year_of_event=year_of_event,
         scale_denominator=scale_denominator,
-        cartographer=cartographer.strip() or None,
-        rights_holder=rights_holder.strip() or None,
+        cartographer=store_optional_text(cartographer),
+        rights_holder=store_optional_text(rights_holder),
         image_key=image_key,
         source_url=None,
         description=description.strip(),
@@ -188,7 +222,7 @@ def edit_map_page(post_id: UUID, request: Request, db: Session = Depends(get_db)
     return templates.TemplateResponse(
         request=request,
         name="map_edit.html",
-        context={"request": request, "current_user": current_user, "post": post, "error": None},
+        context={"request": request, "current_user": current_user, "post": post, "error": None, "regions": _list_regions(db)},
     )
 
 
@@ -196,7 +230,8 @@ def edit_map_page(post_id: UUID, request: Request, db: Session = Depends(get_db)
 def edit_map_submit(
     post_id: UUID,
     title: str = Form(...),
-    territory: str = Form(...),
+    region_name: str = Form(...),
+    coordinates: str = Form(""),
     event_name: str = Form(""),
     year_of_event: int | None = Form(default=None),
     scale_denominator: int | None = Form(default=None),
@@ -211,15 +246,19 @@ def edit_map_submit(
         raise HTTPException(status_code=404, detail="Пост не найден")
     if current_user.role != UserRole.ADMIN and current_user.id != post.user_id:
         raise HTTPException(status_code=403, detail="Недостаточно прав")
-    if not is_valid_territory(territory):
-        return RedirectResponse(url=f"/maps/{post_id}/edit?error=territory", status_code=302)
+    if not is_valid_region_name(region_name):
+        return RedirectResponse(url=f"/maps/{post_id}/edit?error=region", status_code=302)
+    if not is_valid_coordinates(coordinates):
+        return RedirectResponse(url=f"/maps/{post_id}/edit?error=coordinates", status_code=302)
 
+    region = _get_or_create_region(db, region_name)
     post.title = title.strip()
-    post.territory = normalize_territory(territory)
+    post.region_id = region.id if region else None
+    post.coordinates = store_coordinates(coordinates)
     post.year_of_event = year_of_event
     post.scale_denominator = scale_denominator
-    post.cartographer = cartographer.strip() or None
-    post.rights_holder = rights_holder.strip() or None
+    post.cartographer = store_optional_text(cartographer)
+    post.rights_holder = store_optional_text(rights_holder)
     post.description = description.strip()
     if event_name.strip():
         event = _get_or_create_event(db, event_name, post.region_id, year_of_event, None)

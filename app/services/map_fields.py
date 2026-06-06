@@ -1,42 +1,77 @@
 import re
 
-TERRITORY_PATTERN = re.compile(r"^\s*[^-]+-[^-]+-[^-]+\s*$")
-FEDERAL_CITIES = {"Москва", "Санкт-Петербург", "Севастополь"}
+UNKNOWN_PLACEHOLDER = "—"
+
+COORDINATE_PATTERN = re.compile(
+    r"^\s*-?\d{1,3}(?:\.\d+)?\s*,\s*-?\d{1,3}(?:\.\d+)?\s*$"
+)
+KNOWN_REGIONS = {
+    "санкт-петербург",
+    "москва",
+    "ленинградская область",
+    "московская область",
+    "севастополь",
+}
 
 
-def normalize_territory(raw: str | None) -> str:
+def normalize_coordinates(raw: str | None) -> str:
+    return (raw or "").strip()
+
+
+def normalize_region_name(raw: str | None) -> str:
+    return (raw or "").strip()
+
+
+def is_blank_or_unknown(value: str | None) -> bool:
+    if value is None:
+        return True
+    stripped = value.strip()
+    return not stripped or stripped == UNKNOWN_PLACEHOLDER
+
+
+def store_optional_text(raw: str | None) -> str:
     value = (raw or "").strip()
-    if not value:
-        return ""
-    parts = [p.strip() for p in value.split("-")]
-    if len(parts) != 3 or any(not p for p in parts):
-        return value
-    return "-".join(parts)
+    if not value or value == UNKNOWN_PLACEHOLDER:
+        return UNKNOWN_PLACEHOLDER
+    return value
 
 
-def is_valid_territory(raw: str | None) -> bool:
-    return bool(TERRITORY_PATTERN.match((raw or "").strip()))
+def store_coordinates(raw: str | None) -> str:
+    value = normalize_coordinates(raw)
+    if not value or value == UNKNOWN_PLACEHOLDER:
+        return UNKNOWN_PLACEHOLDER
+    return value
 
 
-def _extract_district_from_title(title: str) -> str | None:
-    cleaned = re.sub(r"\(\d{4}\)", "", title or "")
-    cleaned = re.sub(r"1\s*:\s*\d+", "", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .,-—–")
-    if not cleaned:
+def is_valid_coordinates(raw: str | None) -> bool:
+    value = normalize_coordinates(raw)
+    if not value or value == UNKNOWN_PLACEHOLDER:
+        return True
+    return bool(COORDINATE_PATTERN.match(value)) and len(value) <= 255
+
+
+def is_valid_region_name(raw: str | None) -> bool:
+    value = normalize_region_name(raw)
+    return len(value) >= 2 and len(value) <= 120
+
+
+def format_coordinates_from_bounds(bounds: list[tuple[float, float]]) -> str | None:
+    if not bounds:
         return None
-    for sep in [",", "—", "–", "|"]:
-        if sep in cleaned:
-            part = cleaned.split(sep)[0].strip()
-            if 3 <= len(part) <= 80:
-                return part
-    if 3 <= len(cleaned) <= 80:
-        return cleaned
+    lat = sum(point[0] for point in bounds) / len(bounds)
+    lon = sum(point[1] for point in bounds) / len(bounds)
+    return f"{lat:.5f}, {lon:.5f}"
+
+
+def resolve_coordinates(
+    *,
+    bounds: list[tuple[float, float]] | None = None,
+    raw: str | None = None,
+) -> str | None:
+    from_bounds = format_coordinates_from_bounds(bounds or [])
+    if from_bounds:
+        return from_bounds
+    value = normalize_coordinates(raw)
+    if value and is_valid_coordinates(value):
+        return value
     return None
-
-
-def build_territory(region_name: str, title: str = "") -> str:
-    region = (region_name or "Неизвестно").strip() or "Неизвестно"
-    city = region if region in FEDERAL_CITIES else "Неизвестно"
-    district = _extract_district_from_title(title) or "Неизвестно"
-    value = normalize_territory(f"{region}-{city}-{district}")
-    return value or f"{region}-{city}-{district}"
