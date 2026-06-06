@@ -1,60 +1,134 @@
 {% extends "base.html" %}
+
 {% block content %}
+
 <section class="catalog">
+
     <form method="get" action="/catalog" class="search-form" id="catalogForm">
+
         <input type="text" name="q" value="{{ q }}" placeholder="Поиск по картам и пользователям">
-        <input type="text" name="territory" value="{{ territory or '' }}" placeholder="Территория (Регион-Город-Район)">
-        <input type="number" name="year" value="{{ year_raw or '' }}" placeholder="Год">
-        <select name="sort" id="catalogSort">
-            <option value="published_desc" {{ 'selected' if sort == 'published_desc' else '' }}>Публикация: сначала новые</option>
-            <option value="published_asc" {{ 'selected' if sort == 'published_asc' else '' }}>Публикация: сначала старые</option>
-            <option value="year_desc" {{ 'selected' if sort == 'year_desc' else '' }}>Год: по убыванию</option>
-            <option value="year_asc" {{ 'selected' if sort == 'year_asc' else '' }}>Год: по возрастанию</option>
-            <option value="territory_asc" {{ 'selected' if sort == 'territory_asc' else '' }}>Территория: А-Я</option>
-            <option value="territory_desc" {{ 'selected' if sort == 'territory_desc' else '' }}>Территория: Я-А</option>
+
+        <select name="region">
+
+            <option value="">Все регионы</option>
+
+            {% for item in regions %}
+
+                <option value="{{ item.name }}" {% if region == item.name %}selected{% endif %}>{{ item.name }}</option>
+
+            {% endfor %}
+
         </select>
+
+        <select name="sort" id="catalogSort">
+
+            <option value="published_desc" {{ 'selected' if sort == 'published_desc' else '' }}>Публикация: сначала новые</option>
+
+            <option value="published_asc" {{ 'selected' if sort == 'published_asc' else '' }}>Публикация: сначала старые</option>
+
+            <option value="year_desc" {{ 'selected' if sort == 'year_desc' else '' }}>Год: по убыванию</option>
+
+            <option value="year_asc" {{ 'selected' if sort == 'year_asc' else '' }}>Год: по возрастанию</option>
+
+            <option value="region_asc" {{ 'selected' if sort == 'region_asc' else '' }}>Регион: А-Я</option>
+
+            <option value="region_desc" {{ 'selected' if sort == 'region_desc' else '' }}>Регион: Я-А</option>
+
+            <option value="coordinates_asc" {{ 'selected' if sort == 'coordinates_asc' else '' }}>Координаты: А-Я</option>
+
+            <option value="coordinates_desc" {{ 'selected' if sort == 'coordinates_desc' else '' }}>Координаты: Я-А</option>
+
+        </select>
+
         <input type="hidden" name="tab" value="{{ tab }}">
+
         <button type="submit">Найти</button>
+
     </form>
 
+
+
     <div class="tabs">
-        <a class="tab {{ 'active' if tab == 'maps' else '' }}" href="/catalog?tab=maps{% if q %}&q={{ q }}{% endif %}{% if territory %}&territory={{ territory }}{% endif %}{% if year_raw %}&year={{ year_raw }}{% endif %}&sort={{ sort }}">Карты</a>
+
+        <a class="tab {{ 'active' if tab == 'maps' else '' }}" href="/catalog?tab=maps{% if q %}&q={{ q }}{% endif %}{% if region %}&region={{ region }}{% endif %}&sort={{ sort }}">Карты</a>
+
         <a class="tab {{ 'active' if tab == 'users' else '' }}" href="/catalog?tab=users{% if q %}&q={{ q }}{% endif %}">Спортсмены</a>
+
     </div>
 
+
+
     {% if tab == "users" %}
+
         <table class="data-table">
+
             <thead><tr><th>Имя</th><th>Профиль</th></tr></thead>
+
             <tbody>
+
             {% for user in users %}
+
                 <tr>
+
                     <td>{{ user.full_name or user.login }}</td>
+
                     <td><a class="table-link" href="/profile/{{ user.login }}">Открыть</a></td>
+
                 </tr>
+
             {% else %}
+
                 <tr><td colspan="2">Ничего не найдено</td></tr>
+
             {% endfor %}
+
             </tbody>
+
         </table>
+
     {% else %}
+
         <table class="data-table">
-            <thead><tr><th>Название</th><th>Территория</th><th>Соревнование</th><th>Год</th><th>Автор карты</th><th>Публикатор</th><th></th></tr></thead>
+
+            <thead><tr><th>Название</th><th>Регион</th><th>Координаты</th><th>Соревнование</th><th>Год</th><th>Автор карты</th><th>Публикатор</th><th></th></tr></thead>
+
             <tbody>
+
             {% for post in maps %}
+
                 <tr>
+
                     <td>{{ post.title }}</td>
-                    <td>{{ post.territory }}</td>
-                    <td>{{ post.event.name if post.event else "—" }}</td>
-                    <td>{{ post.year_of_event or "—" }}</td>
-                    <td>{{ post.cartographer or "—" }}</td>
+
+                    <td>{{ unknown(post.region.name if post.region else None) }}</td>
+
+                    <td>{{ unknown(post.coordinates) }}</td>
+
+                    <td>{{ unknown(post.event.name if post.event else None) }}</td>
+
+                    <td>{{ unknown(post.year_of_event) }}</td>
+
+                    <td>{{ unknown(post.cartographer) }}</td>
+
                     <td>{{ post.author.full_name if post.author and post.author.full_name else (post.author.login if post.author else post.parsed_source or "импорт") }}</td>
+
                     <td><a class="table-link" href="/maps/{{ post.id }}">Открыть</a></td>
+
                 </tr>
+
             {% else %}
-                <tr><td colspan="7">Ничего не найдено</td></tr>
+
+                <tr><td colspan="8">Ничего не найдено</td></tr>
+
             {% endfor %}
+
             </tbody>
+
         </table>
+
     {% endif %}
+
 </section>
+
 {% endblock %}
+

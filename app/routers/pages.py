@@ -74,17 +74,13 @@ def catalog(
     request: Request,
     q: str | None = Query(default=None),
     tab: str = Query(default="maps"),
-    territory: str | None = Query(default=None),
-    year: str | None = Query(default=None),
+    region: str | None = Query(default=None),
     sort: str = Query(default="published_desc"),
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user),
 ):
     search = (q or "").strip()
-    territory_filter = (territory or "").strip()
-    year_filter: int | None = None
-    if year and year.strip().isdigit():
-        year_filter = int(year.strip())
+    region_filter = (region or "").strip()
 
     maps_stmt = (
         select(MapPost)
@@ -96,27 +92,30 @@ def catalog(
             or_(
                 MapPost.title.ilike(f"%{search}%"),
                 MapPost.description.ilike(f"%{search}%"),
-                MapPost.territory.ilike(f"%{search}%"),
             )
         )
-    if territory_filter:
-        maps_stmt = maps_stmt.where(MapPost.territory.ilike(f"%{territory_filter}%"))
-    if year_filter:
-        maps_stmt = maps_stmt.where(MapPost.year_of_event == year_filter)
+    if region_filter:
+        maps_stmt = maps_stmt.where(MapPost.region.has(Region.name.ilike(f"%{region_filter}%")))
 
     if sort == "year_asc":
         maps_stmt = maps_stmt.order_by(MapPost.year_of_event.asc().nullslast())
     elif sort == "year_desc":
         maps_stmt = maps_stmt.order_by(MapPost.year_of_event.desc().nullslast())
-    elif sort == "territory_asc":
-        maps_stmt = maps_stmt.order_by(MapPost.territory.asc())
-    elif sort == "territory_desc":
-        maps_stmt = maps_stmt.order_by(MapPost.territory.desc())
+    elif sort == "coordinates_asc":
+        maps_stmt = maps_stmt.order_by(MapPost.coordinates.asc().nullslast())
+    elif sort == "coordinates_desc":
+        maps_stmt = maps_stmt.order_by(MapPost.coordinates.desc().nullslast())
+    elif sort == "region_asc":
+        maps_stmt = maps_stmt.outerjoin(Region, MapPost.region_id == Region.id).order_by(Region.name.asc().nullslast())
+    elif sort == "region_desc":
+        maps_stmt = maps_stmt.outerjoin(Region, MapPost.region_id == Region.id).order_by(Region.name.desc().nullslast())
     elif sort == "published_asc":
         maps_stmt = maps_stmt.order_by(MapPost.created_at.asc())
     else:
         maps_stmt = maps_stmt.order_by(MapPost.created_at.desc())
-    maps = db.execute(maps_stmt.limit(200)).scalars().all()
+    maps = db.execute(maps_stmt.limit(200)).unique().scalars().all()
+
+    regions = db.execute(select(Region).order_by(Region.name.asc())).scalars().all()
 
     users_stmt = select(User).where(User.is_active.is_(True))
     if search:
@@ -131,12 +130,11 @@ def catalog(
             "current_user": current_user,
             "tab": tab,
             "q": search,
-            "territory": territory_filter,
-            "year": year_filter,
-            "year_raw": year or "",
+            "region": region_filter,
             "sort": sort,
             "maps": maps,
             "users": users,
+            "regions": regions,
         },
     )
 

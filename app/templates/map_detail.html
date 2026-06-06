@@ -4,27 +4,21 @@
     <header class="detail-toolbar">
         <button type="button" class="back-link" id="backBtn" aria-label="Назад">←</button>
         <h2 class="detail-title">{{ post.title }}</h2>
+        {% if can_manage %}
         <div class="action-menu" data-action-menu>
             <button type="button" class="action-menu-toggle" aria-label="Действия с картой" aria-expanded="false">⚙</button>
             <div class="action-menu-panel" hidden>
-                <a class="action-menu-item" href="/maps/{{ post.id }}/download">Скачать изображение</a>
-                {% if current_user %}
-                    <form method="post" action="/maps/{{ post.id }}/like" class="action-menu-form">
-                        <button type="submit" class="action-menu-item">{{ "Убрать лайк" if liked else "Поставить лайк" }}</button>
-                    </form>
-                {% endif %}
-                {% if can_manage %}
-                    <a class="action-menu-item" href="/maps/{{ post.id }}/edit">Редактировать</a>
-                    <form method="post" action="/maps/{{ post.id }}/delete" class="action-menu-form" onsubmit="return confirm('Удалить пост?');">
-                        <button type="submit" class="action-menu-item action-menu-item-danger">Удалить</button>
-                    </form>
-                {% endif %}
+                <a class="action-menu-item" href="/maps/{{ post.id }}/edit">Редактировать</a>
+                <form method="post" action="/maps/{{ post.id }}/delete" class="action-menu-form" onsubmit="return confirm('Удалить пост?');">
+                    <button type="submit" class="action-menu-item action-menu-item-danger">Удалить</button>
+                </form>
             </div>
         </div>
+        {% endif %}
     </header>
 
     {% if similar_notice %}
-        <div class="info-box">Похожие карты в архиве уже есть. В каталоге можно отфильтровать по территории и году для сравнения.</div>
+        <div class="info-box">Похожие карты в архиве уже есть. В каталоге можно отфильтровать по региону для сравнения.</div>
     {% endif %}
 
     <div class="detail-layout">
@@ -53,18 +47,33 @@
         <aside class="detail-info">
             <dl class="detail-facts">
                 <div><dt>Публикатор</dt><dd>{{ post.author.full_name if post.author and post.author.full_name else (post.author.login if post.author else post.parsed_source or "Импорт") }}</dd></div>
-                <div><dt>Территория</dt><dd>{{ post.territory }}</dd></div>
-                <div><dt>Соревнование</dt><dd>{{ post.event.name if post.event else "Неизвестно" }}</dd></div>
-                <div><dt>Год</dt><dd>{{ post.year_of_event or "Неизвестно" }}</dd></div>
-                <div><dt>Масштаб</dt><dd>{% if post.scale_denominator %}1:{{ post.scale_denominator }}{% else %}Неизвестно{% endif %}</dd></div>
-                <div><dt>Автор-составитель</dt><dd>{{ post.cartographer or "Не указан" }}</dd></div>
-                <div><dt>Правообладатель</dt><dd>{{ post.rights_holder or "Не указан" }}</dd></div>
-                <div><dt>Лайки</dt><dd>{{ likes_count }}</dd></div>
+                <div><dt>Регион</dt><dd>{{ unknown(post.region.name if post.region else None) }}</dd></div>
+                <div><dt>Координаты</dt><dd>{{ unknown(post.coordinates) }}</dd></div>
+                <div><dt>Соревнование</dt><dd>{{ unknown(post.event.name if post.event else None) }}</dd></div>
+                <div><dt>Год</dt><dd>{{ unknown(post.year_of_event) }}</dd></div>
+                <div><dt>Масштаб</dt><dd>{{ unknown_scale(post.scale_denominator) }}</dd></div>
+                <div><dt>Автор-составитель</dt><dd>{{ unknown(post.cartographer) }}</dd></div>
+                <div><dt>Правообладатель</dt><dd>{{ unknown(post.rights_holder) }}</dd></div>
             </dl>
-            {% if post.description %}
+
+            <div class="detail-social">
+                {% if current_user %}
+                    <form method="post" action="/maps/{{ post.id }}/like" class="detail-like-form">
+                        <button type="submit" class="detail-action-btn {% if liked %}is-active{% endif %}" title="{{ 'Убрать лайк' if liked else 'Поставить лайк' }}">
+                            ♥ {{ likes_count }}
+                        </button>
+                    </form>
+                {% else %}
+                    <span class="detail-action-btn" title="Лайки">♥ {{ likes_count }}</span>
+                {% endif %}
+                <a class="detail-action-btn detail-download-btn" href="/maps/{{ post.id }}/download" title="Скачать изображение" download>↓</a>
+            </div>
+
+            {% set description_text = display_description(post.description) %}
+            {% if description_text %}
                 <div class="detail-description">
                     <h4>Описание</h4>
-                    <p>{{ post.description }}</p>
+                    <p>{{ description_text }}</p>
                 </div>
             {% endif %}
         </aside>

@@ -23,11 +23,24 @@
                 <a href="/maps/{{ item.post.id }}" class="post-title-link">
                     <h3>{{ item.post.title }}</h3>
                 </a>
+                {% set region_tag = item.post.region.name if item.post.region and item.post.region.name else none %}
+                {% set coord_tag = known_tag(item.post.coordinates) %}
+                {% if region_tag or coord_tag or item.post.year_of_event or item.post.scale_denominator %}
                 <ul class="post-tags">
-                    <li>{{ item.post.territory }}</li>
-                    <li>{{ item.post.year_of_event or "—" }}</li>
-                    <li>{% if item.post.scale_denominator %}1:{{ item.post.scale_denominator }}{% else %}—{% endif %}</li>
+                    {% if region_tag %}
+                        <li>{{ region_tag }}</li>
+                    {% endif %}
+                    {% if coord_tag %}
+                        <li>{{ coord_tag }}</li>
+                    {% endif %}
+                    {% if item.post.year_of_event %}
+                        <li>{{ item.post.year_of_event }}</li>
+                    {% endif %}
+                    {% if item.post.scale_denominator %}
+                        <li>1:{{ item.post.scale_denominator }}</li>
+                    {% endif %}
                 </ul>
+                {% endif %}
                 <div class="post-meta">
                     {% if current_user %}
                         <form method="post" action="/maps/{{ item.post.id }}/like" class="meta-form">
