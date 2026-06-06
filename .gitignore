@@ -1,7 +1,12 @@
+.env
+.env.*
+!.env.example
+uploads/
 .venv/
 __pycache__/
 *.pyc
-.env
-uploads/
 .pytest_cache/
 .idea/
+*.pem
+*.key
+credentials.json

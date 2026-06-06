@@ -21,9 +21,9 @@ class Settings(BaseSettings):
 
     first_admin_login: str = "admin"
     first_admin_email: EmailStr = "car_specific@mail.ru"
-    first_admin_password: str = "admin12345"
+    first_admin_password: str = "change-me"
     omaps_profile_login: str = "o-maps.spb.ru"
-    omaps_profile_password: str = "OMaps2505!"
+    omaps_profile_password: str = "change-me"
 
     smtp_host: str | None = None
     smtp_port: int = 587
