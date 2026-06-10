@@ -1,4 +1,4 @@
-from urllib.parse import quote, unquote
+from urllib.parse import unquote, urlparse
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
@@ -7,12 +7,25 @@ from app.services.storage_service import storage_service
 
 router = APIRouter(tags=["files"])
 
+_ALLOWED_REMOTE_HOSTS = (
+    "o-maps.spb.ru",
+    "raw.githubusercontent.com",
+    "storage.yandexcloud.net",
+)
+
+
+def _is_allowed_remote_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == allowed or host.endswith(f".{allowed}") for allowed in _ALLOWED_REMOTE_HOSTS)
+
 
 @router.get("/files/remote")
 def serve_remote_file(url: str = Query(..., min_length=8)):
     target = unquote(url)
     if not target.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="Некорректный URL")
+    if not _is_allowed_remote_url(target):
+        raise HTTPException(status_code=403, detail="Загрузка с этого адреса запрещена")
     try:
         data, content_type = storage_service.read_bytes(target)
     except Exception as exc:

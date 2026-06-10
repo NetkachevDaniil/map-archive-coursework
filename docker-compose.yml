@@ -9,11 +9,17 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d orientmaps"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   web:
     build: .
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     env_file:
       - .env
     ports:
