@@ -294,6 +294,18 @@ body::after {
 
 .footer-links a:hover { text-decoration: underline; }
 
+.footer-note,
+.form-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.form-hint {
+  margin-top: 12px;
+}
+
 .footer-copy {
   margin: 4px 0 0;
   font-size: 0.78rem;

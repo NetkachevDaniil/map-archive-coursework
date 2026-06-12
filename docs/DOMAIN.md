@@ -195,32 +195,8 @@ certbot --nginx -d o-maps.net.ru -d www.o-maps.net.ru
 ## Часть 6. REG.RU — что ещё проверить в панели
 
 1. **Домен активен** — оплачен, не просрочен.
-2. **DNS-записи** — A для `@` и `www` указывают на VPS.
-3. **Почта** — для локальной разработки и тестирования регистрации используйте **car_specific@mail.ru** (Mail.ru SMTP). После подключения домена mapsnet.ru замените на **orient@mapsnet.ru**:
-
-```env
-SMTP_HOST=smtp.mail.ru
-SMTP_PORT=465
-SMTP_USER=car_specific@mail.ru
-SMTP_PASSWORD=пароль_от_ящика
-SMTP_SENDER=car_specific@mail.ru
-SMTP_USE_SSL=true
-SMTP_USE_TLS=false
-```
-
-Для продакшена на REG.RU:
-
-```env
-SMTP_HOST=mail.hosting.reg.ru
-SMTP_PORT=465
-SMTP_USER=orient@mapsnet.ru
-SMTP_PASSWORD=пароль_от_ящика
-SMTP_SENDER=orient@mapsnet.ru
-SMTP_USE_SSL=true
-SMTP_USE_TLS=false
-```
-
-(Точные SMTP-параметры смотрите в справке REG.RU для вашего тарифа хостинга/почты.)
+2. **DNS-записи** — A для `@` и `www` указывают на IP VPS.
+3. **Регистрация** — вход и регистрация по логину и паролю, без подтверждения email. На VPS REG.RU исходящие SMTP-порты (465/587) заблокированы, поэтому отправка писем из приложения не используется.
 
 ---
 

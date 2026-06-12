@@ -15,7 +15,6 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
-    verify_token_expire_minutes: int = 60 * 24
 
     database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/orientmaps"
 
@@ -24,15 +23,6 @@ class Settings(BaseSettings):
     first_admin_password: str = "change-me"
     omaps_profile_login: str = "o-maps.spb.ru"
     omaps_profile_password: str = "change-me"
-
-    smtp_host: str | None = None
-    smtp_port: int = 587
-    smtp_user: str | None = None
-    smtp_password: str | None = None
-    smtp_sender: EmailStr = "car_specific@mail.ru"
-    smtp_use_ssl: bool = False
-    smtp_use_tls: bool = True
-    smtp_timeout_seconds: int = 20
 
     use_s3: bool = False
     s3_endpoint_url: str | None = "https://storage.yandexcloud.net"
