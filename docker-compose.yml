@@ -5,8 +5,8 @@ services:
       POSTGRES_DB: orientmaps
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+    # Порт БД не публикуется наружу — доступ только из docker-сети (web -> db).
+    # Для локальной отладки с хоста: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

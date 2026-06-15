@@ -22,8 +22,23 @@ class Settings(BaseSettings):
     first_admin_login: str = "admin"
     first_admin_email: EmailStr = "car_specific@mail.ru"
     first_admin_password: str = "change-me"
-    omaps_profile_login: str = "o-maps.spb.ru"
-    omaps_profile_password: str = "change-me"
+    omaps_spb_login: str = "o-maps.spb.ru"
+    omaps_spb_password: str = "change-me"
+    omaps_moscow_login: str = "o-maps.moscow.ru"
+    omaps_moscow_password: str = "change-me"
+
+    cookie_secure: bool = False
+    expose_local_media: bool = False
+
+    max_upload_bytes: int = 50 * 1024 * 1024
+    parser_min_year: int = 2020
+
+    rate_limit_enabled: bool = True
+    rate_limit_window_seconds: int = 60
+    rate_limit_max_requests: int = 120
+    rate_limit_post_window_seconds: int = 60
+    rate_limit_max_post_requests: int = 25
+    rate_limit_block_seconds: int = 300
 
     smtp_host: str | None = None
     smtp_port: int = 587
@@ -47,7 +62,6 @@ class Settings(BaseSettings):
     default_avatar_url: str = "https://i.pinimg.com/736x/bf/3a/5b/bf3a5beed53640cb39c307219a7d1837.jpg"
 
     parser_user_agent: str = "OrientMapsBot/1.0 (+coursework parser)"
-    parser_days_back_default: int = 7
 
 
 @lru_cache

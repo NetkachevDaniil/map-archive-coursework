@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.core.cookies import set_auth_cookie
 from app.core.security import create_access_token, create_verify_token, decode_token, get_password_hash, verify_password
 from app.db.session import get_db
 from app.models.models import User
@@ -44,7 +45,7 @@ def login(
         )
 
     response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-    response.set_cookie("access_token", create_access_token(user.id), httponly=True, samesite="lax")
+    set_auth_cookie(response, create_access_token(user.id))
     return response
 
 
@@ -121,7 +122,7 @@ def verify_email(token: str, db: Session = Depends(get_db)):
     db.commit()
 
     response = RedirectResponse(url="/profile/me", status_code=status.HTTP_302_FOUND)
-    response.set_cookie("access_token", create_access_token(user.id), httponly=True, samesite="lax")
+    set_auth_cookie(response, create_access_token(user.id))
     return response
 
 
