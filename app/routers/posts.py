@@ -147,7 +147,15 @@ def create_map_post(
     )
 
     event = _get_or_create_event(db, event_name, region.id if region else None, year_of_event, None)
-    image_key = storage_service.save_upload(image, folder="maps")
+    try:
+        image_key = storage_service.save_upload(image, folder="maps")
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            request=request,
+            name="map_create.html",
+            context={"request": request, "current_user": current_user, "error": str(exc), "similar_posts": [], "form_data": form_data, "regions": regions},
+            status_code=400,
+        )
 
     post = MapPost(
         user_id=current_user.id,

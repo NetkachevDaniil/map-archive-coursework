@@ -192,7 +192,10 @@ def profile_edit_submit(
     current_user.bio = bio.strip()
 
     if avatar and avatar.filename:
-        key = storage_service.save_upload(avatar, folder="avatars")
+        try:
+            key = storage_service.save_upload(avatar, folder="avatars")
+        except ValueError:
+            return RedirectResponse(url="/profile/me/edit?error=upload_size", status_code=303)
         current_user.avatar_url = storage_service.get_public_url(key)
 
     db.commit()

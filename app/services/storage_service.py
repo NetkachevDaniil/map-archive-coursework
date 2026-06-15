@@ -9,6 +9,7 @@ from botocore.client import Config
 from fastapi import UploadFile
 
 from app.core.config import get_settings
+from app.services.image_utils import prepare_map_image, read_upload_limited
 
 
 class StorageService:
@@ -28,11 +29,19 @@ class StorageService:
             Path(self.settings.local_upload_dir).mkdir(parents=True, exist_ok=True)
 
     def save_upload(self, upload: UploadFile, folder: str = "maps") -> str:
-        ext = Path(upload.filename or "").suffix or ".jpg"
+        raw = read_upload_limited(upload.file)
+        prepared, ext = prepare_map_image(raw, upload.filename or "map.jpg")
         key = f"{folder}/{uuid.uuid4()}{ext}"
-        data = upload.file.read()
-        content_type = upload.content_type or mimetypes.guess_type(upload.filename or "")[0] or "application/octet-stream"
+        content_type = mimetypes.guess_type(f"name{ext}")[0] or "application/octet-stream"
+        return self._store_bytes(prepared, key, content_type)
 
+    def upload_bytes(self, content: bytes, filename: str, folder: str = "parsed") -> str:
+        prepared, ext = prepare_map_image(content, filename)
+        key = f"{folder}/{uuid.uuid4()}{ext}"
+        content_type = mimetypes.guess_type(f"name{ext}")[0] or "application/octet-stream"
+        return self._store_bytes(prepared, key, content_type)
+
+    def _store_bytes(self, data: bytes, key: str, content_type: str) -> str:
         if self.settings.use_s3 and self.s3_client:
             put_args = {
                 "Bucket": self.settings.s3_bucket_name,
@@ -53,31 +62,6 @@ class StorageService:
         local_path.write_bytes(data)
         return key
 
-    def upload_bytes(self, content: bytes, filename: str, folder: str = "parsed") -> str:
-        ext = Path(filename).suffix or ".jpg"
-        key = f"{folder}/{uuid.uuid4()}{ext}"
-        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-
-        if self.settings.use_s3 and self.s3_client:
-            put_args = {
-                "Bucket": self.settings.s3_bucket_name,
-                "Key": key,
-                "Body": content,
-                "ContentType": content_type,
-            }
-            try:
-                put_args["ACL"] = "public-read"
-                self.s3_client.put_object(**put_args)
-            except Exception:
-                put_args.pop("ACL", None)
-                self.s3_client.put_object(**put_args)
-            return key
-
-        local_path = Path(self.settings.local_upload_dir) / key
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-        local_path.write_bytes(content)
-        return key
-
     def read_bytes(self, key: str) -> tuple[bytes, str]:
         if key.startswith("http://") or key.startswith("https://"):
             headers = {
@@ -85,7 +69,7 @@ class StorageService:
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                 ),
-                "Accept": "image/avif,image/webp,image/apng,image/jpeg,image/*,*/*;q=0.8",
+                "Accept": "image/jpeg,image/png,image/*,*/*;q=0.8",
                 "Accept-Language": "ru-RU,ru;q=0.9",
             }
             if "o-maps.spb.ru" in key:

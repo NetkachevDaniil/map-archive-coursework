@@ -12,4 +12,5 @@ email-validator
 boto3
 httpx
 beautifulsoup4
+Pillow
 pytest
