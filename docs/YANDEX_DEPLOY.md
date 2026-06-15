@@ -144,13 +144,19 @@ sudo nano /etc/nginx/sites-available/o-maps.net.ru
 server {
     listen 80;
     server_name o-maps.net.ru www.o-maps.net.ru;
-    client_max_body_size 25M;
+    client_max_body_size 55M;
+
     location / {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        # Импорт карт (скачивание 5 изображений) может занимать несколько минут
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+        send_timeout 300s;
     }
 }
 ```
