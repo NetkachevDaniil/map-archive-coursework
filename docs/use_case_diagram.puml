@@ -1,8 +1,9 @@
 @startuml use_case_diagram
-' Диаграмма вариантов использования OrientMaps.Net
+' OrientMaps.Net — диаграмма вариантов использования (UC1–UC20)
+' Рендер: https://www.plantuml.com/plantuml/uml/
+' Сохранить PNG как use_case_diagram.png в корень LaTeX-папки
 
 skinparam shadowing false
-skinparam linetype ortho
 skinparam packageStyle rectangle
 skinparam usecase {
   BackgroundColor #FFFFFF
@@ -13,64 +14,65 @@ skinparam actor {
   FontSize 12
 }
 
-left to right direction
+top to bottom direction
 
 actor "Гость" as Guest
 actor "Пользователь" as User
 actor "Администратор" as Admin
-actor "SMTP-сервер\n(почта)" as SMTP
-actor "o-maps.spb.ru\n(внешний источник)" as OMaps
+actor "SMTP-сервер" as SMTP
+actor "O-Maps\n(o-maps.spb.ru\n+ GitHub)" as OMaps
 
-Admin --|> User
-User --|> Guest
+Guest <|-- User
+User <|-- Admin
 
 rectangle "Система OrientMaps.Net" {
 
-  package "Аутентификация и регистрация" {
-    usecase "UC1\nРегистрация\nучётной записи" as UC1
+  package "Аутентификация" {
+    usecase "UC1\nРегистрация" as UC1
     usecase "UC2\nОтправка письма\nподтверждения email" as UC2
     usecase "UC3\nПодтверждение email\nпо ссылке" as UC3
-    usecase "UC4\nВход в систему\n(JWT-cookie)" as UC4
-    usecase "UC5\nВыход\nиз системы" as UC5
+    usecase "UC4\nВход\n(JWT cookie)" as UC4
+    usecase "UC5\nВыход" as UC5
   }
 
   package "Просмотр и поиск" {
-    usecase "UC6\nПросмотр ленты\nкарт" as UC6
-    usecase "UC7\nПоиск, фильтрация\nи сортировка\nв каталоге" as UC7
-    usecase "UC8\nПросмотр страницы\nкарты" as UC8
-    usecase "UC9\nСкачивание\nизображения карты" as UC9
+    usecase "UC6\nЛента карт" as UC6
+    usecase "UC7\nКаталог:\nпоиск, фильтр,\nсортировка" as UC7
+    usecase "UC8\nСтраница карты" as UC8
+    usecase "UC9\nСкачивание\nизображения" as UC9
   }
 
-  package "Работа с картами" {
-    usecase "UC10\nДобавление карты\nпользователем" as UC10
-    usecase "UC11\nРедактирование\nкарты" as UC11
-    usecase "UC12\nУдаление карты" as UC12
-    usecase "UC13\nКомментирование\nкарты" as UC13
-    usecase "UC14\nЛайк карты" as UC14
+  package "Карты пользователя" {
+    usecase "UC10\nДобавление карты" as UC10
+    usecase "UC11\nРедактирование\nсвоей карты" as UC11
+    usecase "UC12\nУдаление\nсвоей карты" as UC12
+    usecase "UC13\nКомментарий" as UC13
+    usecase "UC14\nЛайк" as UC14
   }
 
   package "Профиль" {
-    usecase "UC15\nПросмотр профиля\nпользователя" as UC15
-    usecase "UC16\nРедактирование\nпрофиля и аватара" as UC16
+    usecase "UC15\nПросмотр профиля" as UC15
+    usecase "UC16\nРедактирование профиля\nи аватара" as UC16
   }
 
-  package "Импорт и модерация" {
-    usecase "UC17\nИмпорт карт\nиз O-Maps\n(СПб / Москва)" as UC17
-    usecase "UC18\nРедактирование\nметаданных\nв очереди" as UC18
-    usecase "UC19\nПубликация\nимпортированной карты" as UC19
-    usecase "UC20\nУдаление карты\nиз очереди / архива" as UC20
+  package "Импорт и модерация (админ)" {
+    usecase "UC17\nИмпорт из O-Maps\n(СПб / Москва,\nс 2020 г.)" as UC17
+    usecase "UC18\nПравка метаданных\nв очереди" as UC18
+    usecase "UC19\nПубликация\n(одобрение)" as UC19
+    usecase "UC20\nУдаление\nиз очереди" as UC20
   }
 }
 
-Guest --> UC4
+' --- Гость (неавторизованный) ---
 Guest --> UC1
+Guest --> UC3
+Guest --> UC4
 Guest --> UC6
 Guest --> UC7
 Guest --> UC8
-Guest --> UC9
 Guest --> UC15
 
-User --> UC3
+' --- Пользователь (дополнительно к гостю через наследование) ---
 User --> UC5
 User --> UC10
 User --> UC11
@@ -79,18 +81,22 @@ User --> UC13
 User --> UC14
 User --> UC16
 
-Admin --> UC11
-Admin --> UC12
+' --- Администратор (дополнительно к пользователю) ---
 Admin --> UC17
 Admin --> UC18
 Admin --> UC19
 Admin --> UC20
 
+' --- Все авторизованные могут скачивать; гость — через наследование от просмотра ---
+Guest --> UC9
+User --> UC9
+
+' --- Include / extend / внешние системы ---
 UC1 ..> UC2 : <<include>>
-UC2 --> SMTP : <<send>>
-UC17 --> OMaps : <<получение\nданных>>
-UC17 ..> UC18 : <<include>>
-UC18 ..> UC19 : <<extend>>
-UC18 ..> UC20 : <<extend>>
+UC2 ..> SMTP : SMTP
+UC8 <.. UC9 : <<extend>>
+UC17 ..> OMaps : HTTP
+UC18 <.. UC19 : <<extend>>
+UC18 <.. UC20 : <<extend>>
 
 @enduml
