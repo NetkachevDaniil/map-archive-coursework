@@ -60,71 +60,45 @@
 
     {% if tab == "users" %}
 
-        <table class="data-table data-table--responsive">
-
-            <thead><tr><th>Имя</th><th>Профиль</th></tr></thead>
-
-            <tbody>
-
-            {% for user in users %}
-
-                <tr>
-
-                    <td data-label="Имя">{{ user.full_name or user.login }}</td>
-
-                    <td data-label="Профиль"><a class="table-link" href="/profile/{{ user.login }}">Открыть</a></td>
-
-                </tr>
-
-            {% else %}
-
-                <tr><td colspan="2">Ничего не найдено</td></tr>
-
-            {% endfor %}
-
-            </tbody>
-
-        </table>
+        <div class="catalog-table-wrap">
+            <table class="data-table data-table--users">
+                <thead><tr><th>Имя</th><th>Профиль</th></tr></thead>
+                <tbody>
+                {% for user in users %}
+                    <tr>
+                        <td>{{ user.full_name or user.login }}</td>
+                        <td><a class="table-link" href="/profile/{{ user.login }}">Открыть</a></td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="2">Ничего не найдено</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
     {% else %}
 
-        <table class="data-table data-table--responsive">
-
-            <thead><tr><th>Название</th><th>Регион</th><th>Координаты</th><th>Соревнование</th><th>Год</th><th>Автор карты</th><th>Публикатор</th><th></th></tr></thead>
-
-            <tbody>
-
-            {% for post in maps %}
-
-                <tr>
-
-                    <td data-label="Название">{{ post.title }}</td>
-
-                    <td data-label="Регион">{{ unknown(post.region.name if post.region else None) }}</td>
-
-                    <td data-label="Координаты">{{ unknown(post.coordinates) }}</td>
-
-                    <td data-label="Соревнование">{{ unknown(post.event.name if post.event else None) }}</td>
-
-                    <td data-label="Год">{{ unknown(post.year_of_event) }}</td>
-
-                    <td data-label="Автор карты">{{ unknown(post.cartographer) }}</td>
-
-                    <td data-label="Публикатор">{{ post.author.full_name if post.author and post.author.full_name else (post.author.login if post.author else post.parsed_source or "импорт") }}</td>
-
-                    <td data-label="Карта"><a class="table-link" href="/maps/{{ post.id }}">Открыть</a></td>
-
-                </tr>
-
-            {% else %}
-
-                <tr><td colspan="8">Ничего не найдено</td></tr>
-
-            {% endfor %}
-
-            </tbody>
-
-        </table>
+        <div class="catalog-table-wrap">
+            <table class="data-table data-table--maps">
+                <thead><tr><th>Название</th><th>Регион</th><th>Координаты</th><th>Соревнование</th><th>Год</th><th>Автор карты</th><th>Публикатор</th><th></th></tr></thead>
+                <tbody>
+                {% for post in maps %}
+                    <tr>
+                        <td>{{ post.title }}</td>
+                        <td>{{ unknown(post.region.name if post.region else None) }}</td>
+                        <td>{{ unknown(post.coordinates) }}</td>
+                        <td>{{ unknown(post.event.name if post.event else None) }}</td>
+                        <td>{{ unknown(post.year_of_event) }}</td>
+                        <td>{{ unknown(post.cartographer) }}</td>
+                        <td>{{ post.author.full_name if post.author and post.author.full_name else (post.author.login if post.author else post.parsed_source or "импорт") }}</td>
+                        <td><a class="table-link" href="/maps/{{ post.id }}">Открыть</a></td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8">Ничего не найдено</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
     {% endif %}
 

@@ -64,7 +64,9 @@
     <div class="main-column">
         <header class="mobile-topbar">
             <button type="button" class="mobile-topbar-menu" id="mobileTopbarMenu" aria-label="Открыть меню">☰</button>
-            <a href="/" class="mobile-topbar-brand">OrientMaps.Net</a>
+            <a href="/" class="mobile-topbar-brand brand" aria-label="OrientMaps.Net — на главную">
+                <span class="brand-text"><span class="brand-orient">Orient</span><span class="brand-maps">Maps</span><span class="brand-net">.Net</span></span>
+            </a>
         </header>
         <main class="page-content">
             {% block content %}{% endblock %}
