@@ -19,6 +19,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User | 
 def require_user(user: User | None = Depends(get_current_user)) -> User:
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Требуется авторизация")
+    if not user.is_email_verified:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Подтвердите email")
     return user
 
 

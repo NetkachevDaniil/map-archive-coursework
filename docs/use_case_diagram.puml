@@ -1,6 +1,5 @@
 @startuml use_case_diagram
 ' Диаграмма вариантов использования OrientMaps.Net
-' Отрисовка: https://www.plantuml.com/plantuml/uml/
 
 skinparam shadowing false
 skinparam linetype ortho
@@ -19,6 +18,7 @@ left to right direction
 actor "Гость" as Guest
 actor "Пользователь" as User
 actor "Администратор" as Admin
+actor "SMTP-сервер\n(почта)" as SMTP
 actor "o-maps.spb.ru\n(внешний источник)" as OMaps
 
 Admin --|> User
@@ -28,64 +28,69 @@ rectangle "Система OrientMaps.Net" {
 
   package "Аутентификация и регистрация" {
     usecase "UC1\nРегистрация\nучётной записи" as UC1
-    usecase "UC2\nВход в систему\n(JWT-cookie)" as UC2
-    usecase "UC3\nВыход\nиз системы" as UC3
+    usecase "UC2\nОтправка письма\nподтверждения email" as UC2
+    usecase "UC3\nПодтверждение email\nпо ссылке" as UC3
+    usecase "UC4\nВход в систему\n(JWT-cookie)" as UC4
+    usecase "UC5\nВыход\nиз системы" as UC5
   }
 
   package "Просмотр и поиск" {
-    usecase "UC4\nПросмотр ленты\nкарт" as UC4
-    usecase "UC5\nПоиск, фильтрация\nи сортировка\nв каталоге" as UC5
-    usecase "UC6\nПросмотр страницы\nкарты" as UC6
-    usecase "UC7\nСкачивание\nизображения карты" as UC7
+    usecase "UC6\nПросмотр ленты\nкарт" as UC6
+    usecase "UC7\nПоиск, фильтрация\nи сортировка\nв каталоге" as UC7
+    usecase "UC8\nПросмотр страницы\nкарты" as UC8
+    usecase "UC9\nСкачивание\nизображения карты" as UC9
   }
 
   package "Работа с картами" {
-    usecase "UC8\nДобавление карты\nпользователем" as UC8
-    usecase "UC9\nРедактирование\nкарты" as UC9
-    usecase "UC10\nУдаление карты" as UC10
-    usecase "UC11\nКомментирование\nкарты" as UC11
-    usecase "UC12\nЛайк карты" as UC12
+    usecase "UC10\nДобавление карты\nпользователем" as UC10
+    usecase "UC11\nРедактирование\nкарты" as UC11
+    usecase "UC12\nУдаление карты" as UC12
+    usecase "UC13\nКомментирование\nкарты" as UC13
+    usecase "UC14\nЛайк карты" as UC14
   }
 
   package "Профиль" {
-    usecase "UC13\nПросмотр профиля\nпользователя" as UC13
-    usecase "UC14\nРедактирование\nпрофиля и аватара" as UC14
+    usecase "UC15\nПросмотр профиля\nпользователя" as UC15
+    usecase "UC16\nРедактирование\nпрофиля и аватара" as UC16
   }
 
   package "Импорт и модерация" {
-    usecase "UC15\nИмпорт карт\nиз O-Maps\n(парсинг JS-фидов)" as UC15
-    usecase "UC16\nРедактирование\nметаданных\nв очереди" as UC16
-    usecase "UC17\nПубликация\nимпортированной карты" as UC17
-    usecase "UC18\nУдаление карты\nиз очереди / архива" as UC18
+    usecase "UC17\nИмпорт карт\nиз O-Maps\n(парсинг JS-фидов)" as UC17
+    usecase "UC18\nРедактирование\nметаданных\nв очереди" as UC18
+    usecase "UC19\nПубликация\nимпортированной карты" as UC19
+    usecase "UC20\nУдаление карты\nиз очереди / архива" as UC20
   }
 }
 
-Guest --> UC2
-Guest --> UC1
 Guest --> UC4
-Guest --> UC5
+Guest --> UC1
 Guest --> UC6
 Guest --> UC7
-Guest --> UC13
+Guest --> UC8
+Guest --> UC9
+Guest --> UC15
 
 User --> UC3
-User --> UC8
-User --> UC9
+User --> UC5
 User --> UC10
 User --> UC11
 User --> UC12
+User --> UC13
 User --> UC14
+User --> UC16
 
-Admin --> UC9
-Admin --> UC10
-Admin --> UC15
-Admin --> UC16
+Admin --> UC11
+Admin --> UC12
 Admin --> UC17
 Admin --> UC18
+Admin --> UC19
+Admin --> UC20
 
-UC15 --> OMaps : <<получение\nданных>>
-UC15 ..> UC16 : <<include>>
-UC16 ..> UC17 : <<extend>>
-UC16 ..> UC18 : <<extend>>
+UC1 ..> UC2 : <<include>>
+UC2 --> SMTP : <<send>>
+UC17 --> OMaps : <<получение\nданных>>
+UC17 ..> UC18 : <<include>>
+UC18 ..> UC19 : <<extend>>
+UC18 ..> UC20 : <<extend>>
 
 @enduml

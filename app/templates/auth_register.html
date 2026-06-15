@@ -5,10 +5,10 @@
     {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
     <form method="post" action="/auth/register" class="v-form">
         <label>Логин <input name="login" required autocomplete="username"></label>
+        <label>Email <input type="email" name="email" required autocomplete="email"></label>
         <label>Пароль <input type="password" name="password" required autocomplete="new-password"></label>
         <button type="submit">Создать аккаунт</button>
     </form>
-    <p class="form-hint">После регистрации вы сразу войдёте в систему. В перспективе планируется двухфакторная аутентификация.</p>
     <p>Уже есть аккаунт? <a href="/auth/login">Войти</a></p>
 </section>
 {% endblock %}

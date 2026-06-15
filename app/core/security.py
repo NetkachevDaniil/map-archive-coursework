@@ -25,6 +25,13 @@ def create_access_token(user_id: UUID) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
+def create_verify_token(user_id: UUID, email: str) -> str:
+    settings = get_settings()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.verify_token_expire_minutes)
+    payload = {"sub": str(user_id), "email": email, "type": "verify", "exp": expire}
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+
 def decode_token(token: str) -> dict:
     settings = get_settings()
     return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])

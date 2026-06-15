@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="info-box">
+    {% if email_sent %}
+        Регистрация почти завершена. На почту <b>{{ email }}</b> отправлена ссылка подтверждения.
+    {% else %}
+        Аккаунт <b>{{ email }}</b> создан.
+        <br>{{ email_error }}
+        {% if verify_link %}
+            <p><a class="btn-primary" href="{{ verify_link }}">Подтвердить регистрацию</a></p>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}
