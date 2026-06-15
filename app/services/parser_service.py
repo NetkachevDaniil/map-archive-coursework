@@ -3,7 +3,6 @@ from functools import lru_cache
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from uuid import uuid4
 from urllib.parse import urljoin
 
 import httpx
@@ -22,6 +21,11 @@ OMAPS_SOURCES = [
     ("https://o-maps.spb.ru/sheet-spb.html", "Санкт-Петербург"),
     ("https://o-maps.spb.ru/sheet-moscow.html", "Москва"),
 ]
+
+OMAPS_SOURCE_BY_KEY = {
+    "spb": OMAPS_SOURCES[0],
+    "moscow": OMAPS_SOURCES[1],
+}
 
 OMAPS_JS_FEEDS = {
     "https://o-maps.spb.ru/sheet-spb.html": [
@@ -160,7 +164,7 @@ def _image_download_headers(url: str) -> dict:
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         ),
-        "Accept": "image/avif,image/webp,image/apng,image/jpeg,image/*,*/*;q=0.8",
+        "Accept": "image/jpeg,image/png,image/*,*/*;q=0.8",
         "Accept-Language": "ru-RU,ru;q=0.9",
     }
     if "o-maps.spb.ru" in url:
@@ -180,6 +184,7 @@ def _fetch_html(url: str) -> str:
 
 def _download_bytes(url: str) -> bytes:
     headers = _image_download_headers(url)
+    max_bytes = get_settings().max_upload_bytes
     with httpx.Client(timeout=40, headers=headers, follow_redirects=True) as client:
         response = client.get(url)
         response.raise_for_status()
@@ -188,6 +193,8 @@ def _download_bytes(url: str) -> bytes:
             raise ValueError(f"По URL получена HTML-страница, а не изображение: {url}")
         if len(response.content) < 256:
             raise ValueError(f"Слишком маленький файл ({len(response.content)} байт): {url}")
+        if len(response.content) > max_bytes:
+            raise ValueError(f"Файл слишком большой ({len(response.content)} байт, максимум {max_bytes}): {url}")
         return response.content
 
 
@@ -256,6 +263,12 @@ def _extract_scale(text: str) -> int | None:
 
 
 _MIN_MAP_YEAR = 1955
+
+
+def _passes_import_year(year: int | None) -> bool:
+    if year is None:
+        return False
+    return year >= get_settings().parser_min_year
 
 
 def _is_plausible_map_year(value: int) -> bool:
@@ -382,12 +395,12 @@ def _pick_best_map_link(links: list[str]) -> str | None:
             return (0, len(link))
         if lower.endswith(".png"):
             return (1, len(link))
-        if lower.endswith(".webp"):
-            return (2, len(link))
         if lower.endswith(".gif"):
-            return (3, len(link))
+            return (2, len(link))
         if lower.endswith((".tif", ".tiff")):
-            return (8, len(link))
+            return (3, len(link))
+        if lower.endswith(".webp"):
+            return (9, len(link))
         if lower.endswith(".pdf"):
             return (9, len(link))
         return (5, len(link))
@@ -594,44 +607,62 @@ def build_source_coordinates_lookup() -> dict[str, tuple[str, str | None]]:
     return lookup
 
 
-def parse_recent_items(per_source_limit: int = 5) -> list[ParsedItem]:
+def parse_recent_items(*, source_key: str | None = None, per_source_limit: int = 200) -> list[ParsedItem]:
     items: list[ParsedItem] = []
-    for url, region_name in OMAPS_SOURCES:
+    sources = [OMAPS_SOURCE_BY_KEY[source_key]] if source_key else OMAPS_SOURCES
+    for url, region_name in sources:
         try:
-            page_items = _parse_table_like_page(url, region_name=region_name, limit=200)
+            page_items = _parse_table_like_page(url, region_name=region_name, limit=per_source_limit)
         except Exception:
             page_items = []
         if not page_items:
             for js_url in OMAPS_JS_FEEDS.get(url, []):
                 try:
-                    page_items.extend(_parse_js_feed(js_url, page_url=url, region_name=region_name, limit=200))
+                    page_items.extend(_parse_js_feed(js_url, page_url=url, region_name=region_name, limit=per_source_limit))
                 except Exception:
                     continue
         for item in page_items:
             if _is_pskov_item(region_name=item.region_name, image_url=item.image_url, title=item.title):
                 continue
+            if not _passes_import_year(item.year):
+                continue
             items.append(item)
     return items
 
 
-def _ensure_omaps_publisher_user(db: Session) -> User:
+def _ensure_publisher_user(db: Session, source_key: str) -> User:
     settings = get_settings()
-    user = db.execute(select(User).where(User.login == settings.omaps_profile_login)).scalar_one_or_none()
+    if source_key == "moscow":
+        login, password, full_name = (
+            settings.omaps_moscow_login,
+            settings.omaps_moscow_password,
+            "Карты O-Maps — Москва",
+        )
+    else:
+        login, password, full_name = (
+            settings.omaps_spb_login,
+            settings.omaps_spb_password,
+            "Карты O-Maps — Санкт-Петербург",
+        )
+
+    user = db.execute(select(User).where(User.login == login)).scalar_one_or_none()
     if user:
-        user.password_hash = get_password_hash(settings.omaps_profile_password)
+        user.password_hash = get_password_hash(password)
         user.is_email_verified = True
         user.is_active = True
+        user.full_name = full_name
         db.flush()
         return user
+
     user = User(
-        login=settings.omaps_profile_login,
-        email=f"omaps-import-{uuid4().hex[:8]}@mapsnet.ru",
-        full_name="O-Maps Publisher",
-        password_hash=get_password_hash(settings.omaps_profile_password),
+        login=login,
+        email=f"{login.replace('.', '-')}@mapsnet.ru",
+        full_name=full_name,
+        password_hash=get_password_hash(password),
         role=UserRole.USER,
         is_active=True,
         is_email_verified=True,
-        bio="Профиль публикаций импортированных из таблиц O-Maps.",
+        bio=f"Импортированные карты из o-maps.spb.ru ({source_key}).",
     )
     db.add(user)
     db.flush()
@@ -651,75 +682,76 @@ def _get_or_create_region(db: Session, region_name: str | None) -> Region | None
     return region
 
 
-def import_parsed_items_to_queue(db: Session, per_source_batch: int = 5) -> dict:
+def import_parsed_items_to_queue(db: Session, *, source_key: str, per_source_batch: int = 5) -> dict:
     imported = 0
-    imported_with_external_url = 0
     skipped = 0
     errors = 0
     total_candidates = 0
     last_error = None
-    publisher_user = _ensure_omaps_publisher_user(db)
-    all_items = parse_recent_items(per_source_limit=200)
-    by_source: dict[str, list[ParsedItem]] = {}
+    publisher_user = _ensure_publisher_user(db, source_key)
+    page_url, _region_name = OMAPS_SOURCE_BY_KEY[source_key]
+    all_items = parse_recent_items(source_key=source_key)
+    loaded_from_source = 0
+    seen_in_batch: set[str] = set()
+
     for item in all_items:
-        by_source.setdefault(item.page_url, []).append(item)
-
-    for source_url, items in by_source.items():
-        loaded_from_source = 0
-        seen_in_batch: set[str] = set()
-        for item in items:
-            if loaded_from_source >= per_source_batch:
-                break
-            if _is_pskov_item(region_name=item.region_name, image_url=item.image_url, title=item.title):
-                skipped += 1
-                continue
-            if item.image_url in seen_in_batch:
-                continue
-            seen_in_batch.add(item.image_url)
-            total_candidates += 1
-            exists_stmt = select(MapPost.id).where(MapPost.source_url == item.image_url).limit(1)
-            if db.execute(exists_stmt).scalar_one_or_none():
-                skipped += 1
-                continue
-            try:
-                image_bytes = _download_bytes(item.image_url)
-                key = storage_service.upload_bytes(
-                    image_bytes,
-                    filename=item.image_url.rsplit("/", 1)[-1] or "parsed.jpg",
-                )
-            except Exception as exc:
-                key = item.image_url
-                imported_with_external_url += 1
-                errors += 1
-                last_error = f"{item.image_url} -> {exc}"
-
-            region = _get_or_create_region(db, item.region_name)
-            post = MapPost(
-                user_id=publisher_user.id,
-                region_id=region.id if region else None,
-                title=item.title or "Карта из парсинга",
-                coordinates=store_coordinates(item.coordinates),
-                year_of_event=item.year,
-                scale_denominator=item.scale_denominator,
-                cartographer=store_optional_text(item.cartographer),
-                rights_holder=store_optional_text(item.rights_holder),
-                image_key=key,
-                source_url=item.image_url,
-                description=item.description.strip() if item.description else "",
-                parsed_source=item.source_name,
-                is_parsed=True,
-                parse_status=ParseStatus.PENDING,
-                is_public=False,
+        if loaded_from_source >= per_source_batch:
+            break
+        if _is_pskov_item(region_name=item.region_name, image_url=item.image_url, title=item.title):
+            skipped += 1
+            continue
+        if not _passes_import_year(item.year):
+            skipped += 1
+            continue
+        if item.image_url in seen_in_batch:
+            continue
+        seen_in_batch.add(item.image_url)
+        total_candidates += 1
+        exists_stmt = select(MapPost.id).where(MapPost.source_url == item.image_url).limit(1)
+        if db.execute(exists_stmt).scalar_one_or_none():
+            skipped += 1
+            continue
+        try:
+            image_bytes = _download_bytes(item.image_url)
+            key = storage_service.upload_bytes(
+                image_bytes,
+                filename=item.image_url.rsplit("/", 1)[-1] or "parsed.jpg",
             )
-            db.add(post)
-            imported += 1
-            loaded_from_source += 1
+        except Exception as exc:
+            errors += 1
+            skipped += 1
+            last_error = f"{item.image_url} -> {exc}"
+            continue
+
+        region = _get_or_create_region(db, item.region_name)
+        post = MapPost(
+            user_id=publisher_user.id,
+            region_id=region.id if region else None,
+            title=item.title or "Карта из парсинга",
+            coordinates=store_coordinates(item.coordinates),
+            year_of_event=item.year,
+            scale_denominator=item.scale_denominator,
+            cartographer=store_optional_text(item.cartographer),
+            rights_holder=store_optional_text(item.rights_holder),
+            image_key=key,
+            source_url=item.image_url,
+            description=item.description.strip() if item.description else "",
+            parsed_source=item.source_name,
+            is_parsed=True,
+            parse_status=ParseStatus.PENDING,
+            is_public=False,
+        )
+        db.add(post)
+        imported += 1
+        loaded_from_source += 1
+
     db.commit()
     return {
         "imported": imported,
-        "imported_with_external_url": imported_with_external_url,
         "skipped": skipped,
         "errors": errors,
         "total_candidates": total_candidates,
         "last_error": last_error,
+        "source_key": source_key,
+        "page_url": page_url,
     }

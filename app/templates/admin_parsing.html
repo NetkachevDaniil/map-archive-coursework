@@ -1,126 +1,78 @@
 {% extends "base.html" %}
-
 {% block content %}
-
 <section class="admin-wrap">
-
     <header class="admin-header">
-
         <h2>Модерация спарсенных карт</h2>
-
-        <form method="post" action="/admin/parsing/import" class="import-form">
-
-            <button type="submit">Подгрузить по 5 карт (СПб и Москва)</button>
-
-        </form>
-
+        <div class="import-form import-form-split">
+            <form method="post" action="/admin/parsing/import/spb">
+                <button type="submit">Подгрузить 5 карт — Санкт-Петербург</button>
+            </form>
+            <form method="post" action="/admin/parsing/import/moscow">
+                <button type="submit">Подгрузить 5 карт — Москва</button>
+            </form>
+        </div>
     </header>
 
-
-
     <div class="info-box admin-help">
-
+        <p>Импортируются только карты <b>с 2020 года</b>. Изображения сохраняются в JPEG/PNG без уменьшения разрешения (WebP конвертируется в JPEG).</p>
+        <p>Карты СПб публикуются от профиля <b>o-maps.spb.ru</b>, Москвы — от <b>o-maps.moscow.ru</b>.</p>
         <p><b>Опубликовать</b> — карта появится в ленте и каталоге после проверки полей.</p>
-
         <p><b>Удалить</b> — карта полностью удаляется из базы; при повторном импорте может быть загружена снова.</p>
-
     </div>
-
-
 
     {% if request.query_params.get("imported") %}
         <div class="info-box success-box">
             {% set count = request.query_params.get("imported")|int %}
+            {% set source = request.query_params.get("source", "") %}
             {% if count > 0 %}
-                <p>Импорт завершён: в очередь модерации добавлено {{ count }} карт.</p>
+                <p>Импорт{% if source %} ({{ "Москва" if source == "moscow" else "Санкт-Петербург" }}){% endif %}: в очередь добавлено {{ count }} карт.</p>
             {% else %}
-                <p>Новых карт для импорта не найдено.</p>
+                <p>Новых карт для импорта не найдено{% if source %} ({{ "Москва" if source == "moscow" else "Санкт-Петербург" }}){% endif %}.</p>
             {% endif %}
             {% if request.query_params.get("errors", "0")|int > 0 %}
-                <p><small>Не удалось загрузить часть изображений. Повторите импорт позже.</small></p>
+                <p><small>Часть изображений пропущена (ошибка загрузки или лимит 50 МБ). Повторите импорт позже.</small></p>
             {% endif %}
         </div>
     {% endif %}
 
-
-
     <h3>Ожидают модерации</h3>
-
     {% for post in pending_posts %}
-
         <article class="admin-card admin-card-moderation">
-
             <div class="admin-card-media">
-
                 <img src="{{ storage_service.get_public_url(post.image_key) }}" alt="Карта: {{ post.title }}" loading="lazy">
-
             </div>
-
             <div class="admin-card-body">
-
                 <div class="admin-card-meta">
-
+                    <p><b>Автор:</b> {{ post.author.full_name or post.author.login }}</p>
                     <p><b>Источник:</b> {{ post.parsed_source or "o-maps.spb.ru" }}</p>
-
                     <p><b>URL:</b> <a href="{{ post.source_url }}" target="_blank" rel="noopener" class="table-link">{{ post.source_url or "—" }}</a></p>
-
                 </div>
 
-
-
                 <form method="post" action="/admin/parsing/{{ post.id }}/approve" class="v-form admin-form">
-
                     <input name="title" value="{{ post.title }}" required placeholder="Название">
-
                     <label>Регион
-
                         <select name="region_name" required>
-
                             {% for region in regions %}
-
                                 <option value="{{ region.name }}" {% if post.region and post.region.name == region.name %}selected{% endif %}>{{ region.name }}</option>
-
                             {% endfor %}
-
                         </select>
-
                     </label>
-
                     <input name="coordinates" value="{{ post.coordinates or '' }}" placeholder="Координаты: 55.92747, 37.69615">
-
                     <input name="event_name" placeholder="Соревнование">
-
                     <input type="number" name="year_of_event" value="{{ post.year_of_event or '' }}" placeholder="Год">
-
                     <input type="number" name="scale_denominator" value="{{ post.scale_denominator or '' }}" placeholder="Масштаб">
-
                     <input name="cartographer" value="{{ post.cartographer or '' }}" placeholder="Автор-составитель карты">
-
                     <input name="rights_holder" value="{{ post.rights_holder or '' }}" placeholder="Правообладатель">
-
-                    <textarea name="description" rows="3" placeholder="Описание (необязательно)">{{ display_description(post.description) or '' }}</textarea>
-
+                    <textarea name="description" class="field-fixed" rows="4" placeholder="Описание (необязательно)">{{ display_description(post.description) or '' }}</textarea>
                     <div class="admin-actions">
-
                         <button type="submit" class="btn-primary">Опубликовать</button>
-
                         <button formaction="/admin/parsing/{{ post.id }}/delete" formmethod="post" type="submit" class="btn-danger" onclick="return confirm('Удалить карту из очереди?');">Удалить</button>
-
                     </div>
-
                 </form>
-
             </div>
-
         </article>
-
     {% else %}
-
         <div class="empty-box">Очередь модерации пуста.</div>
-
     {% endfor %}
-
 </section>
-
 {% endblock %}
-

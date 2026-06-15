@@ -16,6 +16,30 @@ def ensure_default_regions() -> None:
         db.commit()
 
 
+def _upsert_service_user(db, login: str, password: str, full_name: str, bio: str) -> None:
+    user = db.execute(select(User).where(User.login == login)).scalar_one_or_none()
+    if user:
+        user.password_hash = get_password_hash(password)
+        user.is_email_verified = True
+        user.is_active = True
+        user.full_name = full_name
+        if bio:
+            user.bio = bio
+    else:
+        db.add(
+            User(
+                login=login,
+                email=f"{login.replace('.', '-')}@mapsnet.ru",
+                full_name=full_name,
+                password_hash=get_password_hash(password),
+                role=UserRole.USER,
+                is_email_verified=True,
+                is_active=True,
+                bio=bio,
+            )
+        )
+
+
 def ensure_default_admin() -> None:
     settings = get_settings()
     with SessionLocal() as db:
@@ -37,28 +61,20 @@ def ensure_default_admin() -> None:
             db.add(admin)
             db.commit()
 
-        for login, password, full_name in [
-            (settings.omaps_profile_login, settings.omaps_profile_password, "O-Maps Publisher"),
-        ]:
-            user = db.execute(select(User).where(User.login == login)).scalar_one_or_none()
-            if user:
-                user.password_hash = get_password_hash(password)
-                user.is_email_verified = True
-                user.is_active = True
-                if not user.full_name:
-                    user.full_name = full_name
-            else:
-                user = User(
-                    login=login,
-                    email=f"{login.replace('.', '-')}@mapsnet.ru",
-                    full_name=full_name,
-                    password_hash=get_password_hash(password),
-                    role=UserRole.USER,
-                    is_email_verified=True,
-                    is_active=True,
-                    bio="Системный профиль источника карт.",
-                )
-                db.add(user)
+        _upsert_service_user(
+            db,
+            settings.omaps_spb_login,
+            settings.omaps_spb_password,
+            "Карты O-Maps — Санкт-Петербург",
+            "Импортированные карты Санкт-Петербурга из o-maps.spb.ru.",
+        )
+        _upsert_service_user(
+            db,
+            settings.omaps_moscow_login,
+            settings.omaps_moscow_password,
+            "Карты O-Maps — Москва",
+            "Импортированные карты Москвы из o-maps.spb.ru.",
+        )
         db.commit()
 
     ensure_default_regions()
