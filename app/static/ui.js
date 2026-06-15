@@ -2,20 +2,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const appShell = document.getElementById("appShell");
   const sidebar = document.getElementById("siteSidebar");
   const backdrop = document.getElementById("sidebarBackdrop");
-  const openButtons = [document.getElementById("mobileTopbarMenu")].filter(Boolean);
+  const menuBtn = document.getElementById("mobileTopbarMenu");
 
   const setNavOpen = (open) => {
-    if (!appShell || !sidebar || !backdrop) return;
+    if (!appShell || !backdrop) return;
     appShell.classList.toggle("is-nav-open", open);
     backdrop.hidden = !open;
-    openButtons.forEach((btn) => btn.setAttribute("aria-expanded", open ? "true" : "false"));
+    if (menuBtn) menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
     document.body.style.overflow = open ? "hidden" : "";
   };
 
-  openButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      setNavOpen(!appShell?.classList.contains("is-nav-open"));
-    });
+  menuBtn?.addEventListener("click", () => {
+    setNavOpen(!appShell?.classList.contains("is-nav-open"));
   });
 
   backdrop?.addEventListener("click", () => setNavOpen(false));
