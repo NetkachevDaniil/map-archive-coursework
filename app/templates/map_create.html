@@ -46,7 +46,7 @@
 
         <label>Правообладатель <input name="rights_holder" value="{{ form_data.rights_holder if form_data else '' }}" placeholder="ФИО или организация"></label>
 
-        <label>Описание <textarea name="description" rows="4">{{ form_data.description if form_data else '' }}</textarea></label>
+        <label>Описание <textarea class="field-fixed" name="description" rows="4">{{ form_data.description if form_data else '' }}</textarea></label>
 
         <label class="file-input">
 

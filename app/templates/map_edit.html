@@ -22,7 +22,7 @@
         <label>Масштаб <input type="number" name="scale_denominator" value="{{ post.scale_denominator or '' }}"></label>
         <label>Автор-составитель <input name="cartographer" value="{{ post.cartographer or '' }}"></label>
         <label>Правообладатель <input name="rights_holder" value="{{ post.rights_holder or '' }}"></label>
-        <label>Описание <textarea name="description" rows="4">{{ post.description }}</textarea></label>
+        <label>Описание <textarea class="field-fixed" name="description" rows="4">{{ post.description }}</textarea></label>
         <button type="submit">Сохранить</button>
     </form>
 </section>

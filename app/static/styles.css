@@ -662,6 +662,26 @@ input, textarea, select {
   color: var(--color-text);
 }
 
+textarea.field-fixed,
+.admin-form textarea,
+.map-create-form textarea,
+.comment-form textarea {
+  resize: none;
+  min-height: 6.5rem;
+  max-height: 6.5rem;
+  overflow-y: auto;
+}
+
+.import-form-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.import-form-split form {
+  margin: 0;
+}
+
 input:focus, textarea:focus, select:focus {
   outline: 2px solid rgba(232, 116, 42, 0.45);
   border-color: var(--color-orient);

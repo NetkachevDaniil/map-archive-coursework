@@ -8,7 +8,7 @@
             <input name="full_name" value="{{ profile_user.full_name or '' }}" required placeholder="Как вас видят другие пользователи">
         </label>
         <label>О себе
-            <textarea name="bio" rows="4" placeholder="Кратко о себе, клуб, интересы...">{{ profile_user.bio or '' }}</textarea>
+            <textarea class="field-fixed" name="bio" rows="4" placeholder="Кратко о себе, клуб, интересы...">{{ profile_user.bio or '' }}</textarea>
         </label>
         <label class="file-input">
             <span class="file-input-label">Выбрать аватар</span>
