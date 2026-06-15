@@ -44,4 +44,12 @@ def prepare_map_image(content: bytes, source_name: str, max_bytes: int | None = 
         image.save(buffer, format="JPEG", quality=95, subsampling=0)
         return buffer.getvalue(), ".jpg"
 
+    if ext == ".gif":
+        image = Image.open(BytesIO(content))
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        buffer = BytesIO()
+        image.save(buffer, format="JPEG", quality=95, subsampling=0)
+        return buffer.getvalue(), ".jpg"
+
     return content, ext

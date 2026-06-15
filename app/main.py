@@ -25,6 +25,15 @@ app.include_router(pages.router)
 
 @app.on_event("startup")
 def on_startup() -> None:
+    settings = get_settings()
+    for name, value in {
+        "S3_ACCESS_KEY_ID": settings.s3_access_key_id,
+        "S3_SECRET_ACCESS_KEY": settings.s3_secret_access_key,
+        "SECRET_KEY": settings.secret_key,
+    }.items():
+        if value and ("ВСТАВЬ" in value or value in {"change-me", "change-me-in-production"}):
+            print(f"[CONFIG WARNING] {name} looks like a placeholder — check .env")
+
     Base.metadata.create_all(bind=engine)
     ensure_default_admin()
 

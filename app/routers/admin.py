@@ -47,10 +47,16 @@ def parsing_queue(request: Request, db: Session = Depends(get_db), admin: User =
     )
 
 
+from urllib.parse import quote
+
+
 def _redirect_after_import(result: dict) -> RedirectResponse:
     source = result["source_key"]
+    last_error = (result.get("last_error") or "")[:300]
     return RedirectResponse(
-        f"/admin/parsing?imported={result['imported']}&errors={result['errors']}&source={source}",
+        f"/admin/parsing?imported={result['imported']}&errors={result['errors']}"
+        f"&skipped={result.get('skipped', 0)}&candidates={result.get('total_candidates', 0)}"
+        f"&source={source}&last_error={quote(last_error, safe='')}",
         status_code=302,
     )
 

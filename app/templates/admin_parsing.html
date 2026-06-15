@@ -20,17 +20,23 @@
         <p><b>Удалить</b> — карта полностью удаляется из базы; при повторном импорте может быть загружена снова.</p>
     </div>
 
-    {% if request.query_params.get("imported") %}
-        <div class="info-box success-box">
+    {% if request.query_params.get("imported") is not none and request.query_params.get("source") %}
+        <div class="info-box {% if request.query_params.get('imported', '0')|int > 0 %}success-box{% else %}error-box{% endif %}">
             {% set count = request.query_params.get("imported")|int %}
+            {% set errors = request.query_params.get("errors", "0")|int %}
             {% set source = request.query_params.get("source", "") %}
             {% if count > 0 %}
                 <p>Импорт{% if source %} ({{ "Москва" if source == "moscow" else "Санкт-Петербург" }}){% endif %}: в очередь добавлено {{ count }} карт.</p>
+            {% elif errors > 0 %}
+                <p>Импорт не удался{% if source %} ({{ "Москва" if source == "moscow" else "Санкт-Петербург" }}){% endif %}: найдено кандидатов {{ request.query_params.get("candidates", "0") }}, но ни одну карту не удалось сохранить.</p>
             {% else %}
-                <p>Новых карт для импорта не найдено{% if source %} ({{ "Москва" if source == "moscow" else "Санкт-Петербург" }}){% endif %}.</p>
+                <p>Новых карт для импорта не найдено{% if source %} ({{ "Москва" if source == "moscow" else "Санкт-Петербург" }}){% endif %} — возможно, они уже в базе.</p>
             {% endif %}
-            {% if request.query_params.get("errors", "0")|int > 0 %}
-                <p><small>Часть изображений пропущена (ошибка загрузки или лимит 50 МБ). Повторите импорт позже.</small></p>
+            {% if errors > 0 %}
+                <p><small>Ошибок при сохранении: {{ errors }}. Проверьте S3-ключи в <code>.env</code> и лимит 50 МБ.</small></p>
+                {% if request.query_params.get("last_error") %}
+                    <p><small>Последняя ошибка: {{ request.query_params.get("last_error") }}</small></p>
+                {% endif %}
             {% endif %}
         </div>
     {% endif %}
