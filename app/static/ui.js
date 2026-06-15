@@ -1,4 +1,40 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const appShell = document.getElementById("appShell");
+  const sidebar = document.getElementById("siteSidebar");
+  const backdrop = document.getElementById("sidebarBackdrop");
+  const openButtons = [
+    document.getElementById("sidebarToggle"),
+    document.getElementById("mobileTopbarMenu"),
+  ].filter(Boolean);
+
+  const setNavOpen = (open) => {
+    if (!appShell || !sidebar || !backdrop) return;
+    appShell.classList.toggle("is-nav-open", open);
+    backdrop.hidden = !open;
+    openButtons.forEach((btn) => btn.setAttribute("aria-expanded", open ? "true" : "false"));
+    document.body.style.overflow = open ? "hidden" : "";
+  };
+
+  openButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setNavOpen(!appShell?.classList.contains("is-nav-open"));
+    });
+  });
+
+  backdrop?.addEventListener("click", () => setNavOpen(false));
+
+  sidebar?.querySelectorAll(".nav-link, .logout-link").forEach((link) => {
+    link.addEventListener("click", () => setNavOpen(false));
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setNavOpen(false);
+  });
+
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 900) setNavOpen(false);
+  });
+
   const cards = document.querySelectorAll(".reveal-card");
   if (cards.length > 0) {
     const reveal = (card, delay = 0) => {

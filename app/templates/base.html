@@ -11,8 +11,10 @@
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body style="--bg-image: url('{{ site_background_url }}');">
-<div class="app-shell">
-    <aside class="sidebar">
+<div class="app-shell" id="appShell">
+    <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="Открыть меню" aria-controls="siteSidebar" aria-expanded="false">☰</button>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+    <aside class="sidebar" id="siteSidebar">
         <a href="/" class="brand" aria-label="OrientMaps.Net — на главную">
             <span class="brand-text"><span class="brand-orient">Orient</span><span class="brand-maps">Maps</span><span class="brand-net">.Net</span></span>
         </a>
@@ -61,6 +63,10 @@
     </aside>
 
     <div class="main-column">
+        <header class="mobile-topbar">
+            <button type="button" class="mobile-topbar-menu" id="mobileTopbarMenu" aria-label="Меню">☰</button>
+            <a href="/" class="mobile-topbar-brand">OrientMaps.Net</a>
+        </header>
         <main class="page-content">
             {% block content %}{% endblock %}
         </main>
