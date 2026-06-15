@@ -199,18 +199,18 @@ certbot --nginx -d o-maps.net.ru -d www.o-maps.net.ru
 ## Часть 6. REG.RU — что ещё проверить в панели
 
 1. **Домен активен** — оплачен, не просрочен.
-2. **DNS-записи** — A для `@` и `www` указывают на IP VPS.
-3. **Регистрация** — вход и регистрация по логину и паролю, без подтверждения email. На VPS REG.RU исходящие SMTP-порты (465/587) заблокированы, поэтому отправка писем из приложения не используется.
+2. **DNS-записи** — A для `@` и `www` указывают на IP виртуальной машины в Yandex Cloud.
+3. **Почта** — подтверждение регистрации через SMTP Yandex (на Yandex Cloud порты 465/587 доступны).
 
 ---
 
 ## Схема работы
 
 ```
-Браузер → o-maps.net.ru (DNS REG.RU → IP VPS)
+Браузер → o-maps.net.ru (DNS REG.RU → Yandex Cloud VM)
        → Nginx :443 HTTPS
-       → FastAPI :8000
-       → PostgreSQL + Yandex S3 (картинки)
+       → Docker: FastAPI :8000
+       → PostgreSQL + Yandex Object Storage (картинки)
 ```
 
 ---
@@ -229,23 +229,23 @@ certbot --nginx -d o-maps.net.ru -d www.o-maps.net.ru
 
 ## Чеклист перед сдачей курсовой
 
-- [ ] A-запись `@` и `www` → IP VPS в REG.RU
-- [ ] `nslookup o-maps.net.ru` → правильный IP
-- [ ] `docker compose up -d` на сервере
-- [ ] Nginx проксирует на порт 8000
+- [ ] A-запись `@` и `www` → IP Yandex Cloud в REG.RU
+- [ ] `nslookup o-maps.net.ru` → актуальный IP сервера
+- [ ] `git pull` и `docker compose up -d --build` на сервере
+- [ ] Nginx: `client_max_body_size 55M`, `proxy_read_timeout 300s`
 - [ ] Certbot выдал HTTPS
 - [ ] Открывается https://o-maps.net.ru
-- [ ] Регистрация / вход / каталог / модерация работают
-- [ ] Картинки грузятся из S3
+- [ ] Регистрация с подтверждением email, каталог, импорт и модерация работают
+- [ ] Картинки загружаются в S3 (`scripts/test_s3_config.py`)
 
 ---
 
 ## Обновление сайта после изменений в коде
 
-На VPS:
+На сервере (Yandex Cloud):
 
 ```bash
 cd /opt/orientmaps
-git pull
+git pull origin main
 docker compose up -d --build
 ```
