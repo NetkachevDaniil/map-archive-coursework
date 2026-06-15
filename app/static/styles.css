@@ -531,7 +531,7 @@ body::after {
 .search-form select { min-width: 220px; }
 
 .catalog .search-form {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .catalog .search-form input,
@@ -1334,97 +1334,75 @@ a.btn-secondary {
   margin-bottom: 0;
 }
 
-/* ── Responsive: все разрешения ── */
+/* ── Responsive: мобильные и планшеты (ПК не трогаем) ── */
 
-/* Крупные мониторы */
-@media (min-width: 1440px) {
-  :root {
-    --sidebar-width: 300px;
+@media (min-width: 901px) {
+  .mobile-topbar,
+  .sidebar-toggle,
+  .sidebar-backdrop {
+    display: none !important;
   }
 
-  .page-content,
-  .container {
-    max-width: 1280px;
-    padding: 32px 40px 24px;
+  .app-shell {
+    flex-direction: row;
   }
 
-  .feed-grid {
-    grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
-    gap: 22px;
-  }
-}
-
-/* Ноутбуки / планшеты горизонтально */
-@media (max-width: 1200px) {
-  .catalog .search-form input[name="q"],
-  .catalog .search-form select[name="region"],
-  .catalog .search-form select[name="sort"] {
-    width: 100%;
-    min-width: 0;
-    flex: 1 1 220px;
+  .sidebar {
+    position: sticky;
+    top: 0;
+    left: auto;
+    transform: none;
+    width: var(--sidebar-width);
+    flex: 0 0 var(--sidebar-width);
+    height: 100vh;
   }
 
   .catalog .search-form {
-    align-items: stretch;
+    flex-wrap: nowrap;
   }
 
-  .detail-layout {
-    grid-template-columns: minmax(0, 1fr) 280px;
+  .catalog .search-form input[name="q"] {
+    width: 320px;
   }
 
-  .admin-wrap .admin-card {
-    grid-template-columns: 280px 1fr;
+  .catalog .search-form select[name="region"] {
+    width: 220px;
+  }
+
+  .catalog .search-form select[name="sort"] {
+    width: 250px;
   }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1024px) and (min-width: 901px) {
+  .page-content,
+  .container {
+    padding: 24px 20px 18px;
+  }
+}
+
+@media (max-width: 900px) {
   .page-content,
   .container {
     max-width: 100%;
-    padding: 24px 20px 18px;
+    padding: 20px 16px;
   }
 
-  .admin-card,
+  .detail-layout {
+    grid-template-columns: 1fr;
+  }
+
   .admin-card-moderation {
+    grid-template-columns: minmax(220px, 1fr) 1fr;
+  }
+
+  .admin-form {
     grid-template-columns: 1fr;
-  }
-
-  .admin-card-media {
-    min-height: 380px;
-    height: auto;
-    max-height: 55vh;
-  }
-
-  .admin-form,
-  .admin-wrap .v-form {
-    grid-template-columns: 1fr;
-  }
-
-  .admin-wrap .admin-card {
-    grid-template-columns: 1fr;
-  }
-
-  .feed:not(.feed-grid) .post-card .post-content-link {
-    grid-template-columns: 200px 1fr;
-  }
-
-  .table-scroll-hint {
-    display: none;
-  }
-
-  .data-table--responsive {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
   }
 }
 
-/* Планшет: выдвижное меню */
-@media (max-width: 900px) {
-  .sidebar-toggle {
-    display: none;
-  }
-
+/* Телефоны и узкие планшеты: выдвижное меню */
+@media (max-width: 768px) {
   .mobile-topbar {
     display: flex;
     align-items: center;
@@ -1478,7 +1456,6 @@ a.btn-secondary {
     left: 0;
     bottom: 0;
     width: min(292px, 88vw);
-    max-width: 88vw;
     height: 100vh;
     height: 100dvh;
     flex: none;
@@ -1510,36 +1487,17 @@ a.btn-secondary {
     pointer-events: auto;
   }
 
-  .brand {
-    margin-bottom: 24px;
-  }
-
   .sidebar-nav {
     flex-direction: column;
     flex-wrap: nowrap;
-    justify-content: flex-start;
   }
 
   .nav-link {
     min-height: 44px;
-    padding: 10px 14px;
   }
 
   .nav-link:hover {
     transform: none;
-  }
-
-  .sidebar-footer {
-    width: 100%;
-    margin-top: auto;
-    padding-top: 16px;
-  }
-
-  .page-content,
-  .container {
-    padding: 20px 16px;
-    padding-left: max(16px, env(safe-area-inset-left, 0px));
-    padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
 
   .feed-grid {
@@ -1548,10 +1506,6 @@ a.btn-secondary {
   }
 
   .detail-main,
-  .detail-layout {
-    grid-template-columns: 1fr;
-  }
-
   .detail-image {
     max-height: 58vh;
   }
@@ -1569,21 +1523,16 @@ a.btn-secondary {
     width: 100%;
   }
 
-  .detail-toolbar {
-    grid-template-columns: auto 1fr auto;
-    gap: 8px;
+  .admin-card,
+  .admin-card-moderation,
+  .admin-wrap .admin-card {
+    grid-template-columns: 1fr;
   }
 
-  .detail-title {
-    font-size: 1.05rem;
-  }
-
-  .fab {
-    right: max(16px, env(safe-area-inset-right, 0px));
-    bottom: max(16px, env(safe-area-inset-bottom, 0px));
-    width: 52px;
-    height: 52px;
-    font-size: 1.75rem;
+  .admin-card-media {
+    min-height: 280px;
+    height: auto;
+    max-height: 50vh;
   }
 
   .profile-top {
@@ -1603,13 +1552,23 @@ a.btn-secondary {
     max-width: 100%;
   }
 
-  .profile-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  .fab {
+    right: max(16px, env(safe-area-inset-right, 0px));
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
   }
-}
 
-/* Каталог: карточки вместо таблицы */
-@media (max-width: 768px) {
+  .catalog .search-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .catalog .search-form input,
+  .catalog .search-form select,
+  .catalog .search-form button {
+    width: 100%;
+    min-width: 0;
+  }
+
   .catalog .data-table--responsive {
     display: block;
     overflow: visible;
@@ -1671,34 +1630,19 @@ a.btn-secondary {
     display: none;
   }
 
-  .search-form input,
-  .search-form select,
-  .search-form button {
-    width: 100%;
-    min-width: 0;
-  }
-
   .v-form button,
   .form-actions .btn-secondary,
-  .form-actions button {
+  .form-actions button,
+  .admin-actions button {
     width: 100%;
   }
 
   .admin-actions {
     flex-direction: column;
   }
-
-  .admin-actions button {
-    width: 100%;
-  }
 }
 
-/* Смартфоны */
 @media (max-width: 560px) {
-  .brand-text {
-    font-size: 1.25rem;
-  }
-
   .feed-grid {
     grid-template-columns: 1fr;
   }
@@ -1711,11 +1655,6 @@ a.btn-secondary {
     transform: none;
   }
 
-  .admin-card-media {
-    min-height: 240px;
-    max-height: 45vh;
-  }
-
   .footer-links {
     flex-direction: column;
     gap: 8px;
@@ -1725,39 +1664,11 @@ a.btn-secondary {
     padding: 18px 16px calc(22px + env(safe-area-inset-bottom, 0px));
   }
 
-  .comment-form .btn-submit {
-    width: 100%;
-  }
-
-  .tabs .tab {
-    flex: 1 1 auto;
-    text-align: center;
-  }
-
   .feed:not(.feed-grid) .post-card .post-content-link {
     grid-template-columns: 1fr;
   }
-
-  .detail-social {
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  input,
-  textarea,
-  select,
-  button,
-  .nav-link,
-  .tab {
-    font-size: 16px;
-  }
-
-  .nav-link {
-    font-size: 0.95rem;
-  }
 }
 
-/* Очень узкие экраны */
 @media (max-width: 380px) {
   .page-content,
   .container {
@@ -1776,23 +1687,10 @@ a.btn-secondary {
     grid-template-columns: 1fr;
     gap: 4px;
   }
-
-  .form-card {
-    padding: 16px;
-  }
 }
 
 .table-scroll-hint {
   display: none;
-  margin: 0 0 8px;
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
-}
-
-@media (min-width: 769px) and (max-width: 1024px) {
-  .table-scroll-hint {
-    display: block;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

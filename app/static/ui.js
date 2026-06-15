@@ -2,10 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const appShell = document.getElementById("appShell");
   const sidebar = document.getElementById("siteSidebar");
   const backdrop = document.getElementById("sidebarBackdrop");
-  const openButtons = [
-    document.getElementById("sidebarToggle"),
-    document.getElementById("mobileTopbarMenu"),
-  ].filter(Boolean);
+  const openButtons = [document.getElementById("mobileTopbarMenu")].filter(Boolean);
 
   const setNavOpen = (open) => {
     if (!appShell || !sidebar || !backdrop) return;
@@ -32,7 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   window.addEventListener("resize", () => {
-    if (window.innerWidth > 900) setNavOpen(false);
+    if (window.innerWidth > 768) setNavOpen(false);
   });
 
   const cards = document.querySelectorAll(".reveal-card");
