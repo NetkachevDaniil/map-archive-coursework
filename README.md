@@ -1,125 +1,83 @@
 # OrientMaps Coursework
 
-Веб-приложение архива карт спортивного ориентирования на стеке:
+Веб-приложение архива карт спортивного ориентирования **OrientMaps.Net** ([o-maps.net.ru](https://o-maps.net.ru/)).
 
-- Python + FastAPI
-- Jinja2
-- PostgreSQL
-- SQLAlchemy
-- Alembic
-- JWT (через cookie)
-- S3 (Yandex Object Storage) или локальное хранилище
+Стек: Python, FastAPI, Jinja2, PostgreSQL, SQLAlchemy, Alembic, JWT (cookie), Yandex Object Storage.
 
-## Что реализовано
+## Функциональность
 
-- Регистрация с подтверждением email (письмо со ссылкой) и вход по логину/email и паролю (JWT в cookie)
-- Две роли: `user` и `admin`
-- Уникальный админ создаётся автоматически при первом старте
-- Лента новостей с картами
-- Каталог-архив в формате таблицы с вкладками:
-  - Карты (поиск, фильтр по региону, сортировка)
-  - Спортсмены (поиск пользователей)
-- Профиль пользователя с сеткой карт (как в соцсетях)
-- Страница карты (детали, лайки, комментарии, скачивание)
-- Страница добавления карты (только для авторизованного пользователя)
-- Очередь модерации парсинга (только для админа):
-  - импорт изображений из поддерживаемых источников
-  - редактирование метаданных
-  - публикация или удаление
-- Docker + docker-compose
+- Регистрация с подтверждением email (SMTP) и вход по логину/email
+- Роли `user` и `admin`; админ создаётся при первом старте из `.env`
+- Лента, каталог (карты и спортсмены), профили, добавление карт
+- Лайки, комментарии, скачивание изображений
+- Импорт карт из [o-maps.spb.ru](https://o-maps.spb.ru/) с модерацией (отдельно СПб и Москва)
+- Ограничение частоты запросов (защита от «спама» кнопками)
+- Лимит размера файлов карт: **50 МБ**
 
-Для отправки писем подтверждения настройте SMTP в `.env` (см. `.env.example`). На Yandex Cloud используется `smtp.yandex.ru`.
+## Источник парсинга O-Maps
 
-## Источники парсинга (в текущей версии)
+Сайт **o-maps.spb.ru** — единая точка входа. Страницы `sheet-spb.html` и `sheet-moscow.html` подгружают каталоги карт из JavaScript-файлов репозитория [efradkin/o-maps](https://github.com/efradkin/o-maps) на GitHub (`raw.githubusercontent.com`). Сами изображения лежат либо на `o-maps.spb.ru/original_maps/...`, либо в том же репозитории в каталоге `maps/...`.
 
-- `https://o-maps.spb.ru/` — листы **Санкт-Петербург** и **Москва** (JS-фиды из репозитория efradkin/o-maps)
+При импорте:
 
-Изображения сохраняются в S3 или локально и отдаются через `/files/...` на сервере приложения.
+- парсятся только карты **с 2020 года** (год обязателен в метаданных);
+- за один запуск — до **5 новых** карт выбранного региона;
+- карты СПб публикуются от профиля `o-maps.spb.ru`, Москвы — от `o-maps.moscow.ru`;
+- предпочтение форматов JPEG/PNG; WebP конвертируется в JPEG без уменьшения разрешения.
 
-## Быстрый запуск (локально, без Docker)
+## Безопасность
 
-1. Создайте БД PostgreSQL:
-   - База: `orientmaps`
-   - Пользователь: `postgres`
-   - Пароль: `postgres` (или свой, тогда поправьте `.env`)
-2. Скопируйте `.env.example` в `.env`
-3. Создайте виртуальное окружение и установите зависимости:
-   - `python -m venv .venv`
-   - `.venv\Scripts\activate`
-   - `pip install -r requirements.txt`
-4. Выполните миграции:
-   - `alembic upgrade head`
-5. Запустите приложение:
-   - `uvicorn app.main:app --reload`
-6. Откройте:
-   - [http://localhost:8000](http://localhost:8000)
+| Риск | Решение в проекте |
+|------|-------------------|
+| PostgreSQL доступен из интернета | В `docker-compose.yml` порт **5432 не пробрасывается** на хост. Для локальной отладки: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up` |
+| Слабый пароль БД | На продакшене задайте сильный `POSTGRES_PASSWORD` в `.env` и в `DATABASE_URL` |
+| Секреты в Git | `.env` в `.gitignore`; в репозитории только `.env.example` |
+| Прямой доступ к `uploads/` | Маршрут `/media` отключён по умолчанию (`EXPOSE_LOCAL_MEDIA=false`); файлы отдаются через `/files/` |
+| Перебор форм / спам кнопками | Middleware rate limit: при превышении лимита IP временно блокируется |
+| Cookie по HTTP | На HTTPS установите `COOKIE_SECURE=true` |
 
-## Учетка админа по умолчанию
+**Важно:** если раньше на VPS был открыт порт 5432 с паролем `postgres`, смените пароль БД и закройте порт в файрволе облака.
 
-Берётся из `.env`:
+## Быстрый запуск (локально)
 
-- `FIRST_ADMIN_LOGIN`
-- `FIRST_ADMIN_EMAIL` — служебный email записи администратора в БД
-- `FIRST_ADMIN_PASSWORD`
-
-Если админ уже есть в БД, второй не создаётся.
-
-## Подключение Yandex Cloud S3
-
-1. В Yandex Cloud создайте бакет в Object Storage.
-2. Создайте сервисный аккаунт и статический ключ доступа (Access key + Secret key).
-3. Убедитесь, что у ключа есть права на бакет (`storage.editor` минимум).
-4. В `.env` установите:
-
-```env
-USE_S3=true
-S3_ENDPOINT_URL=https://storage.yandexcloud.net
-S3_ACCESS_KEY_ID=ваш_access_key
-S3_SECRET_ACCESS_KEY=ваш_secret_key
-S3_BUCKET_NAME=имя_бакета
-S3_REGION=ru-central1
-S3_PUBLIC_BASE_URL=https://storage.yandexcloud.net/имя_бакета
-```
-
-5. Перезапустите приложение.
-
-Если бакет закрытый, для скачивания/просмотра лучше добавить presigned URLs (следующий шаг развития).
+1. PostgreSQL: база `orientmaps`, пользователь `postgres`
+2. `cp .env.example .env` и заполните переменные
+3. `python -m venv .venv` → активация → `pip install -r requirements.txt`
+4. `alembic upgrade head`
+5. `uvicorn app.main:app --reload` → [http://localhost:8000](http://localhost:8000)
 
 ## Docker
 
-1. Скопируйте `.env.example` в `.env`
-2. Убедитесь, что `DATABASE_URL` внутри контейнера указывает на сервис `db`:
-
-```env
-DATABASE_URL=postgresql+psycopg2://postgres:postgres@db:5432/orientmaps
+```bash
+cp .env.example .env
+# DATABASE_URL=postgresql+psycopg2://postgres:ВАШ_ПАРОЛЬ@db:5432/orientmaps
+docker compose up --build
 ```
 
-3. Запуск:
-   - `docker compose up --build`
-4. Приложение:
-   - [http://localhost:8000](http://localhost:8000)
+Доступ к PostgreSQL с хоста (только для разработки):
 
-## Работа в PyCharm
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
 
-1. `File -> Open` и выберите папку проекта `D:\map-archive-coursework`.
-2. Настройте интерпретатор:
-   - `Settings -> Project -> Python Interpreter`
-   - Создать `.venv` в проекте.
-3. Установите зависимости (`requirements.txt`).
-4. Создайте `.env` из `.env.example`.
-5. Создайте Run Configuration:
-   - Тип: `Python`
-   - Module name: `uvicorn`
-   - Parameters: `app.main:app --reload`
-   - Working directory: корень проекта.
-6. Запустите конфигурацию.
-7. Для миграций откройте терминал PyCharm:
-   - `alembic upgrade head`
+На продакшене (Yandex Cloud): `COOKIE_SECURE=true`, сильные пароли, порты **22, 80, 443** — без 5432.
 
-## Что дальше по проекту
+## Переменные окружения
 
-- Двухфакторная аутентификация (при появлении канала доставки кодов)
-- Добавить API-интеграции для VK/Telegram (официальные токены и правила платформ)
-- Добавить presigned URL для приватного S3
-- Расширить фильтрацию каталога по датам/масштабу/автору отдельными полями формы
-- Добавить тесты на роуты и сервис парсинга
+| Переменная | Назначение |
+|------------|------------|
+| `FIRST_ADMIN_*` | Учётная запись администратора |
+| `OMAPS_SPB_*`, `OMAPS_MOSCOW_*` | Служебные профили для импортированных карт |
+| `SMTP_*` | Подтверждение email |
+| `S3_*`, `USE_S3` | Yandex Object Storage |
+| `MAX_UPLOAD_BYTES` | Лимит размера карты (по умолчанию 50 МБ) |
+| `PARSER_MIN_YEAR` | Минимальный год импорта (2020) |
+| `RATE_LIMIT_*` | Параметры ограничения частоты запросов |
+
+## Деплой
+
+См. `docs/YANDEX_DEPLOY.md` и `docs/DOMAIN.md`.
+
+## Разработка в PyCharm
+
+Run configuration: module `uvicorn`, parameters `app.main:app --reload`, working directory — корень проекта.

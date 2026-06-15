@@ -55,7 +55,7 @@ rectangle "Система OrientMaps.Net" {
   }
 
   package "Импорт и модерация" {
-    usecase "UC17\nИмпорт карт\nиз O-Maps\n(парсинг JS-фидов)" as UC17
+    usecase "UC17\nИмпорт карт\nиз O-Maps\n(СПб / Москва)" as UC17
     usecase "UC18\nРедактирование\nметаданных\nв очереди" as UC18
     usecase "UC19\nПубликация\nимпортированной карты" as UC19
     usecase "UC20\nУдаление карты\nиз очереди / архива" as UC20
