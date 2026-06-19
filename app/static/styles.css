@@ -100,11 +100,13 @@ body::after {
 }
 
 .sidebar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
   flex: 0 0 var(--sidebar-width);
   width: var(--sidebar-width);
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   padding: 28px 20px 20px;
@@ -246,6 +248,7 @@ body::after {
   min-width: 0;
   width: 100%;
   max-width: 100%;
+  margin-left: var(--sidebar-width);
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
@@ -1394,6 +1397,8 @@ a.btn-secondary {
 
   .sidebar {
     position: relative;
+    top: auto;
+    left: auto;
     width: 100%;
     height: auto;
     flex-direction: row;
@@ -1401,6 +1406,10 @@ a.btn-secondary {
     align-items: center;
     gap: 12px;
     padding: 16px;
+  }
+
+  .main-column {
+    margin-left: 0;
   }
 
   .brand { margin-bottom: 0; }
