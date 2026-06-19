@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v={{ static_asset_version }}">
 </head>
 <body style="--bg-image: url('{{ site_background_url }}');">
 <div class="app-shell" id="appShell">
@@ -97,6 +97,6 @@
     <a class="fab" href="/maps/create" title="Добавить карту">+</a>
 {% endif %}
 
-<script src="/static/ui.js" defer></script>
+<script src="/static/ui.js?v={{ static_asset_version }}" defer></script>
 </body>
 </html>

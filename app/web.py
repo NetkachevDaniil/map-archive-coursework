@@ -59,6 +59,7 @@ def _template_context(_request: Request) -> dict[str, Any]:
         "unknown_scale": unknown_scale,
         "display_description": display_description,
         "known_tag": known_tag,
+        "static_asset_version": "3",
     }
 
 
